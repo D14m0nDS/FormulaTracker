@@ -100,6 +100,30 @@ class RaceEntry(BaseModel):
     team: str
 
 
+class DriverStanding(BaseModel):
+    position: int
+    position_text: str
+    points: float
+    wins: int
+    driver: Driver
+    teams: list[str]
+
+
+class ConstructorStanding(BaseModel):
+    position: int
+    position_text: str
+    points: float
+    wins: int
+    team: str
+
+
+class SeasonStandings(BaseModel):
+    season: int
+    after_round: int | None = None
+    drivers: list[DriverStanding]
+    constructors: list[ConstructorStanding]
+
+
 class RaceResults(BaseModel):
     season: int
     round: int

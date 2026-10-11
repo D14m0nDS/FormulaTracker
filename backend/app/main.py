@@ -9,14 +9,17 @@ from app.jolpica import (
     ResultsNotFound,
     ScheduleService,
     SeasonNotFound,
+    StandingsNotFound,
 )
-from app.models import RaceResults, SeasonSchedule, SessionResults
+from app.models import RaceResults, SeasonSchedule, SeasonStandings, SessionResults
 from app.results import ResultsService, RoundNotFound, SessionNotScheduled
+from app.standings import StandingsService
 
 
 def create_app(
     service: ScheduleService | None = None,
     results: ResultsService | None = None,
+    standings: StandingsService | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -24,11 +27,13 @@ def create_app(
             client = JolpicaClient()
             app.state.schedules = ScheduleService(client)
             app.state.results = ResultsService(app.state.schedules, client)
+            app.state.standings = StandingsService(client)
             yield
             await app.state.schedules.aclose()
         else:
             app.state.schedules = service
             app.state.results = results
+            app.state.standings = standings
             yield
 
     app = FastAPI(title="FormulaTracker", lifespan=lifespan)
@@ -38,6 +43,9 @@ def create_app(
 
     def get_results(request: Request) -> ResultsService:
         return request.app.state.results
+
+    def get_standings(request: Request) -> StandingsService:
+        return request.app.state.standings
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -54,6 +62,18 @@ def create_app(
             raise HTTPException(status_code=404, detail="Season not found") from None
         except ProviderUnavailable:
             raise HTTPException(status_code=502, detail="Schedule provider unavailable") from None
+
+    @app.get("/seasons/{year}/standings", response_model=SeasonStandings)
+    async def season_standings(
+        year: int = Path(ge=1950, le=2100),
+        standings_service: StandingsService = Depends(get_standings),
+    ) -> SeasonStandings:
+        try:
+            return await standings_service.get_standings(year)
+        except StandingsNotFound:
+            raise HTTPException(status_code=404, detail="Standings not found") from None
+        except ProviderUnavailable:
+            raise HTTPException(status_code=502, detail="Standings provider unavailable") from None
 
     @app.get(
         "/seasons/{year}/rounds/{round}/sessions/{session_type}/results",
