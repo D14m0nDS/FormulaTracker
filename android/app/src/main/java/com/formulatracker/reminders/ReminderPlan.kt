@@ -58,6 +58,10 @@ internal fun seasonReminderRequestCodes(): List<Int> {
     }
 }
 
+internal fun scheduleRemindersFor(loadedSeason: Int, currentYear: Int): Boolean {
+    return loadedSeason == currentYear
+}
+
 fun planReminders(
     schedule: SeasonSchedule,
     preferences: ReminderPreferences,

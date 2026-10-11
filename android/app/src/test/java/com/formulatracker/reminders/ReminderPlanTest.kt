@@ -86,6 +86,12 @@ class ReminderPlanTest {
     }
 
     @Test
+    fun browsingAnotherSeasonDoesNotReplaceCurrentSeasonReminders() {
+        assertTrue(scheduleRemindersFor(loadedSeason = 2026, currentYear = 2026))
+        assertFalse(scheduleRemindersFor(loadedSeason = 2011, currentYear = 2026))
+    }
+
+    @Test
     fun requestCodesStayUniqueAndClearOfTheTestReminder() {
         val sessions = REMINDER_SESSION_TYPES.map {
             session(it.type, it.label, "2026-03-07T05:00:00Z")

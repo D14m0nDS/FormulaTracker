@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.formulatracker.reminders.ReminderSettings
 import com.formulatracker.reminders.SessionReminderScheduler
+import com.formulatracker.reminders.scheduleRemindersFor
 import com.formulatracker.schedule.FIRST_SEASON_YEAR
 import com.formulatracker.schedule.HttpScheduleSource
 import com.formulatracker.schedule.RaceWeekend
@@ -71,6 +72,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     val reminderSettings = remember { ReminderSettings(appContext) }
     val reminderScheduler = remember { SessionReminderScheduler(appContext) }
     var reminderPreferences by remember { mutableStateOf(reminderSettings.read()) }
+    var currentSeasonSchedule by remember { mutableStateOf<SeasonSchedule?>(null) }
 
     LaunchedEffect(seasonYear, attempt, opened) {
         if (opened != Opened.None) {
@@ -89,16 +91,17 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         }
     }
 
-    LaunchedEffect(state, reminderPreferences, seasonYear) {
-        val ready = state as? ScheduleUiState.Ready
-        if (ready != null && ready.schedule.season == seasonYear) {
-            withContext(Dispatchers.IO) {
-                reminderScheduler.replace(ready.schedule, reminderPreferences)
-            }
-        } else if (ready != null && ready.schedule.season != seasonYear) {
-            withContext(Dispatchers.IO) {
-                reminderScheduler.clear()
-            }
+    LaunchedEffect(state, currentYear) {
+        val ready = state as? ScheduleUiState.Ready ?: return@LaunchedEffect
+        if (scheduleRemindersFor(ready.schedule.season, currentYear)) {
+            currentSeasonSchedule = ready.schedule
+        }
+    }
+
+    LaunchedEffect(currentSeasonSchedule, reminderPreferences) {
+        val schedule = currentSeasonSchedule ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            reminderScheduler.replace(schedule, reminderPreferences)
         }
     }
 
