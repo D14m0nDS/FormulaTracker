@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The emulator reaches the host backend at an IP address. Domain rules in
+         network security config do not match raw IPs, so debug builds allow
+         cleartext. Release builds keep the platform default. -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>
