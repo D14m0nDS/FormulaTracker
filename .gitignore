@@ -1,0 +1,83 @@
+# FormulaTracker — intentionally local project instructions/history
+/AGENTS.md
+/agents.md
+/progress.md
+/PROGRESS.md
+
+# Local Cursor settings / rules (private by default)
+/.cursor/
+
+# Secrets and local environment settings (keep example templates)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*service-account*.json
+**/google-services.json
+
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.python-version
+*.egg-info/
+.eggs/
+*.egg
+build/
+dist/
+
+# Python testing, linting, caches and local DBs
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.cache/
+*.sqlite
+*.sqlite3
+*.db
+fastf1_cache/
+.fastf1_cache/
+
+# Android / Gradle / Kotlin build artifacts
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.iml
+.idea/
+.cxx/
+.externalNativeBuild/
+*.apk
+*.aab
+captures/
+
+# General local/editor/OS files
+.vscode/
+*.log
+*.tmp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local Docker volumes or development artifacts — not Dockerfiles or compose
+.docker-data/
+docker-data/
+.volumes/
