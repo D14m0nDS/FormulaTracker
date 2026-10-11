@@ -3,6 +3,7 @@ package com.formulatracker.standings
 import com.formulatracker.schedule.ScheduleParseException
 import com.formulatracker.ui.constructorLine
 import com.formulatracker.ui.driverLine
+import com.formulatracker.ui.standingsStillLoading
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -28,6 +29,12 @@ class StandingsJsonTest {
             "1  Mercedes  578 pts  11 wins",
             constructorLine(standings.constructors.single()),
         )
+    }
+
+    @Test
+    fun standingsKeepLoadingUntilEightSeconds() {
+        assertEquals(true, standingsStillLoading(1_000, 8_999))
+        assertEquals(false, standingsStillLoading(1_000, 9_000))
     }
 
     @Test

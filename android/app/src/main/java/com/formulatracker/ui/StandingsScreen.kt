@@ -27,7 +27,15 @@ import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+
+internal const val STANDINGS_GIVE_UP_MILLIS = 8_000L
+private const val STANDINGS_RETRY_PAUSE_MILLIS = 1_000L
+
+internal fun standingsStillLoading(startedAtMillis: Long, nowMillis: Long): Boolean {
+    return nowMillis - startedAtMillis < STANDINGS_GIVE_UP_MILLIS
+}
 
 private enum class StandingsTable {
     Drivers,
@@ -51,12 +59,20 @@ fun StandingsScreen(
 
     LaunchedEffect(year, attempt) {
         state = StandingsUiState.Loading
-        state = try {
-            StandingsUiState.Ready(withContext(Dispatchers.IO) { source.fetchStandings(year) })
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            StandingsUiState.Failed(error.message ?: "Couldn't load standings")
+        val startedAt = System.currentTimeMillis()
+        while (true) {
+            try {
+                state = StandingsUiState.Ready(withContext(Dispatchers.IO) { source.fetchStandings(year) })
+                return@LaunchedEffect
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (!standingsStillLoading(startedAt, System.currentTimeMillis())) {
+                    state = StandingsUiState.Failed("Couldn't load standings")
+                    return@LaunchedEffect
+                }
+                delay(STANDINGS_RETRY_PAUSE_MILLIS)
+            }
         }
     }
 
