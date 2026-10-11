@@ -101,7 +101,7 @@ class RaceEntry(BaseModel):
 
 
 class DriverStanding(BaseModel):
-    position: int
+    position: int | None = None
     position_text: str
     points: float
     wins: int
@@ -110,7 +110,7 @@ class DriverStanding(BaseModel):
 
 
 class ConstructorStanding(BaseModel):
-    position: int
+    position: int | None = None
     position_text: str
     points: float
     wins: int

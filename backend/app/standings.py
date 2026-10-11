@@ -63,8 +63,8 @@ def normalize_standings(driver_payload: dict, constructor_payload: dict, *, seas
     after_round = driver_round if driver_round is not None else constructor_round
     drivers = [_driver_row(row) for row in driver_rows]
     constructors = [_constructor_row(row) for row in constructor_rows]
-    drivers.sort(key=lambda standing: standing.position)
-    constructors.sort(key=lambda standing: standing.position)
+    drivers.sort(key=_position_order)
+    constructors.sort(key=_position_order)
     return SeasonStandings(
         season=season,
         after_round=after_round,
@@ -123,9 +123,10 @@ def _driver_row(row: object) -> DriverStanding:
             if isinstance(name, str) and name:
                 teams.append(name)
 
+    position, position_text = _championship_position(row, "driver position")
     return DriverStanding(
-        position=_required_whole(row.get("position"), "driver position"),
-        position_text=_position_text(row),
+        position=position,
+        position_text=position_text,
         points=_required_points(row.get("points")),
         wins=_required_whole(row.get("wins"), "driver wins"),
         driver=Driver(
@@ -145,21 +146,32 @@ def _constructor_row(row: object) -> ConstructorStanding:
     name = constructor.get("name") if isinstance(constructor, dict) else None
     if not isinstance(name, str) or not name:
         raise StandingsPayloadError("constructor standing has no team")
+    position, position_text = _championship_position(row, "constructor position")
     return ConstructorStanding(
-        position=_required_whole(row.get("position"), "constructor position"),
-        position_text=_position_text(row),
+        position=position,
+        position_text=position_text,
         points=_required_points(row.get("points")),
         wins=_required_whole(row.get("wins"), "constructor wins"),
         team=name,
     )
 
 
-def _position_text(row: dict) -> str:
+def _position_order(standing: DriverStanding | ConstructorStanding) -> tuple[int, int]:
+    # A missing place, such as Jolpica's "-" for an ineligible driver, stays
+    # after every numbered row. Wikipedia prints that dash rather than the next rank.
+    if standing.position is None:
+        return (1, 0)
+    return (0, standing.position)
+
+
+def _championship_position(row: dict, label: str) -> tuple[int | None, str]:
+    position = _whole(row.get("position"))
     text = row.get("positionText")
     if isinstance(text, str) and text:
-        return text
-    position = _whole(row.get("position"))
-    return str(position) if position is not None else ""
+        return position, text
+    if position is not None:
+        return position, str(position)
+    raise StandingsPayloadError(f"standings payload has no {label}")
 
 
 def _required_whole(value: object, label: str) -> int:

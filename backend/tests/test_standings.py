@@ -35,6 +35,33 @@ def test_standings_parse_points_order_rows_and_drop_provider_ids():
     assert "wikipedia" not in dumped
 
 
+def test_ineligible_driver_stays_last_with_a_dash():
+    drivers = json.loads(json.dumps(FIXTURE["drivers"]))
+    rows = drivers["MRData"]["StandingsTable"]["StandingsLists"][0]["DriverStandings"]
+    rows.append(
+        {
+            "positionText": "-",
+            "points": "0",
+            "wins": "0",
+            "Driver": {
+                "code": "WIN",
+                "givenName": "Markus",
+                "familyName": "Winkelhock",
+            },
+            "Constructors": [{"name": "Spyker"}],
+        }
+    )
+
+    standings = normalize_standings(drivers, FIXTURE["constructors"], season=2026)
+    unranked = standings.drivers[-1]
+
+    assert [row.driver.code for row in standings.drivers] == ["ANT", "RUS", "WIN"]
+    assert unranked.position is None
+    assert unranked.position_text == "-"
+    assert unranked.points == 0
+    assert unranked.teams == ["Spyker"]
+
+
 def test_mismatched_standings_rounds_are_rejected():
     constructors = json.loads(json.dumps(FIXTURE["constructors"]))
     constructors["MRData"]["StandingsTable"]["round"] = "16"
