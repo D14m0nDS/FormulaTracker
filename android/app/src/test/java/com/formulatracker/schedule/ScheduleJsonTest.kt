@@ -36,6 +36,15 @@ class ScheduleJsonTest {
     }
 
     @Test
+    fun savedScheduleRoundTripsForALaterBoot() {
+        val original = parseSchedule(SCHEDULE_JSON)
+
+        val restored = parseSchedule(scheduleToJson(original))
+
+        assertEquals(original, restored)
+    }
+
+    @Test
     fun parseSchedule_rejectsAPayloadWithoutEvents() {
         val error = assertThrows(ScheduleParseException::class.java) {
             parseSchedule("""{"season":2026}""")

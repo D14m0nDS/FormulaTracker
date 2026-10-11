@@ -1,5 +1,6 @@
 package com.formulatracker.schedule
 
+import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
 
@@ -19,6 +20,38 @@ fun parseSchedule(json: String): SeasonSchedule {
         }
     }
     return SeasonSchedule(season, events)
+}
+
+fun scheduleToJson(schedule: SeasonSchedule): String {
+    val events = JSONArray()
+    for (weekend in schedule.events) {
+        val sessions = JSONArray()
+        for (session in weekend.sessions) {
+            val sessionJson = JSONObject()
+                .put("type", session.type)
+                .put("name", session.name)
+                .put("start", session.start.toString())
+                .put("cancelled", session.cancelled)
+            if (session.timezone != null) {
+                sessionJson.put("timezone", session.timezone)
+            }
+            sessions.put(sessionJson)
+        }
+        events.put(
+            JSONObject()
+                .put("round", weekend.round)
+                .put("name", weekend.name)
+                .put(
+                    "circuit",
+                    JSONObject()
+                        .put("name", weekend.circuitName)
+                        .put("locality", weekend.locality)
+                        .put("country", weekend.country),
+                )
+                .put("sessions", sessions),
+        )
+    }
+    return JSONObject().put("season", schedule.season).put("events", events).toString()
 }
 
 private fun parseWeekend(event: JSONObject): RaceWeekend {

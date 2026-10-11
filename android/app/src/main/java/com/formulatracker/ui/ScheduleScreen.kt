@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.formulatracker.reminders.ReminderScheduleStore
 import com.formulatracker.reminders.ReminderSettings
 import com.formulatracker.reminders.SessionReminderScheduler
 import com.formulatracker.reminders.scheduleRemindersFor
@@ -70,6 +71,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     var opened by remember { mutableStateOf<Opened>(Opened.None) }
     val appContext = LocalContext.current.applicationContext
     val reminderSettings = remember { ReminderSettings(appContext) }
+    val reminderScheduleStore = remember { ReminderScheduleStore(appContext) }
     val reminderScheduler = remember { SessionReminderScheduler(appContext) }
     var reminderPreferences by remember { mutableStateOf(reminderSettings.read()) }
     var currentSeasonSchedule by remember { mutableStateOf<SeasonSchedule?>(null) }
@@ -93,9 +95,14 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
 
     LaunchedEffect(state, currentYear) {
         val ready = state as? ScheduleUiState.Ready ?: return@LaunchedEffect
-        if (scheduleRemindersFor(ready.schedule.season, currentYear)) {
-            currentSeasonSchedule = ready.schedule
+        if (!scheduleRemindersFor(ready.schedule.season, currentYear)) {
+            return@LaunchedEffect
         }
+        withContext(Dispatchers.IO) {
+            reminderScheduleStore.write(ready.schedule)
+        }
+        ensureActive()
+        currentSeasonSchedule = ready.schedule
     }
 
     LaunchedEffect(currentSeasonSchedule, reminderPreferences) {
