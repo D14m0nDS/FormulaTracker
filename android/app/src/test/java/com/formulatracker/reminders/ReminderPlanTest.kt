@@ -8,6 +8,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 class ReminderPlanTest {
     private val now = Instant.parse("2026-03-06T00:00:00Z")
@@ -19,7 +21,7 @@ class ReminderPlanTest {
             session("R", "Race", "2026-03-08T04:00:00Z"),
         )
 
-        val planned = planReminders(schedule, ReminderPreferences(), now)
+        val planned = planReminders(schedule, ReminderPreferences(raceWeek = false), now)
 
         assertEquals(
             listOf(
@@ -64,7 +66,7 @@ class ReminderPlanTest {
     @Test
     fun timingsThatAreOffProduceNothing() {
         val schedule = schedule(session("R", "Race", "2026-03-08T04:00:00Z"))
-        val preferences = ReminderPreferences(beforeStart = false, atStart = false)
+        val preferences = ReminderPreferences(beforeStart = false, atStart = false, raceWeek = false)
 
         assertTrue(planReminders(schedule, preferences, now).isEmpty())
     }
@@ -96,7 +98,7 @@ class ReminderPlanTest {
         val sessions = REMINDER_SESSION_TYPES.map {
             session(it.type, it.label, "2026-03-07T05:00:00Z")
         }
-        val planned = planReminders(schedule(*sessions.toTypedArray()), ReminderPreferences(), now)
+        val planned = planReminders(schedule(*sessions.toTypedArray()), ReminderPreferences(raceWeek = false), now)
         val codes = seasonReminderRequestCodes()
 
         assertEquals(14, planned.size)
@@ -104,6 +106,78 @@ class ReminderPlanTest {
         assertTrue(planned.all { it.requestCode in codes })
         assertFalse(codes.contains(TEST_REMINDER_REQUEST_CODE))
         assertEquals(codes.size, codes.distinct().size)
+        assertTrue(raceWeekRequestCodes().none { it in codes || it == TEST_REMINDER_REQUEST_CODE })
+    }
+
+    @Test
+    fun raceWeekIsMondayAtNineInThePhoneZone() {
+        val zone = ZoneId.of("America/New_York")
+        val race = ZonedDateTime.of(2026, 11, 8, 14, 0, 0, 0, zone)
+        val schedule = schedule(session("R", "Race", race.toInstant().toString()))
+        val preferences = ReminderPreferences(beforeStart = false, atStart = false)
+
+        val planned = planReminders(schedule, preferences, Instant.parse("2026-10-01T00:00:00Z"), zone)
+
+        assertEquals("Race week is scheduled to begin", planned.single().text)
+        assertEquals(ZonedDateTime.of(2026, 11, 2, 9, 0, 0, 0, zone).toInstant(), planned.single().triggerAt)
+        assertEquals(raceWeekRequestCode(1), planned.single().requestCode)
+    }
+
+    @Test
+    fun raceWeekUsesTheOffsetInForceOnThatMonday() {
+        val zone = ZoneId.of("America/New_York")
+        val race = ZonedDateTime.of(2026, 3, 15, 14, 0, 0, 0, zone)
+        val schedule = schedule(session("R", "Race", race.toInstant().toString()))
+
+        val planned = planReminders(
+            schedule,
+            ReminderPreferences(beforeStart = false, atStart = false),
+            Instant.parse("2026-03-01T00:00:00Z"),
+            zone,
+        )
+
+        assertEquals(Instant.parse("2026-03-09T13:00:00Z"), planned.single().triggerAt)
+    }
+
+    @Test
+    fun raceWeekInParisUsesCentralEuropeanSummerTime() {
+        val zone = ZoneId.of("Europe/Paris")
+        val race = ZonedDateTime.of(2026, 4, 5, 15, 0, 0, 0, zone)
+        val schedule = schedule(session("R", "Race", race.toInstant().toString()))
+
+        val planned = planReminders(
+            schedule,
+            ReminderPreferences(beforeStart = false, atStart = false),
+            Instant.parse("2026-03-01T00:00:00Z"),
+            zone,
+        )
+
+        assertEquals(Instant.parse("2026-03-30T07:00:00Z"), planned.single().triggerAt)
+    }
+
+    @Test
+    fun raceWeekIsSkippedOnceMondayMorningHasPassed() {
+        val zone = ZoneId.of("Europe/Sofia")
+        val schedule = schedule(session("R", "Race", "2026-03-08T13:00:00Z"))
+
+        val planned = planReminders(
+            schedule,
+            ReminderPreferences(beforeStart = false, atStart = false),
+            now,
+            zone,
+        )
+
+        assertTrue(planned.isEmpty())
+    }
+
+    @Test
+    fun cancelledRaceHasNoRaceWeekReminder() {
+        val zone = ZoneId.of("Europe/Sofia")
+        val schedule = schedule(session("R", "Race", "2026-11-08T12:00:00Z", cancelled = true))
+
+        val planned = planReminders(schedule, ReminderPreferences(), Instant.parse("2026-10-01T00:00:00Z"), zone)
+
+        assertTrue(planned.none { it.text == "Race week is scheduled to begin" })
     }
 
     private fun schedule(vararg sessions: ScheduledSession): SeasonSchedule {

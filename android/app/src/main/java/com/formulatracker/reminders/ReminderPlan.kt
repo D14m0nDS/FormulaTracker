@@ -1,8 +1,12 @@
 package com.formulatracker.reminders
 
 import com.formulatracker.schedule.SeasonSchedule
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 
 data class ReminderSessionType(val type: String, val label: String)
 
@@ -20,6 +24,7 @@ data class ReminderPreferences(
     val enabledTypes: Set<String> = REMINDER_SESSION_TYPES.map { it.type }.toSet(),
     val beforeStart: Boolean = true,
     val atStart: Boolean = true,
+    val raceWeek: Boolean = true,
 )
 
 data class PlannedReminder(
@@ -31,6 +36,7 @@ data class PlannedReminder(
 
 internal const val MAX_REMINDER_ROUND = 30
 internal const val TEST_REMINDER_REQUEST_CODE = 10_001
+internal const val RACE_WEEK_REQUEST_CODE_BASE = 5_000
 internal val REMINDER_LEAD = Duration.ofMinutes(60)
 
 private const val SLOTS_PER_ROUND = 14
@@ -58,6 +64,22 @@ internal fun seasonReminderRequestCodes(): List<Int> {
     }
 }
 
+internal fun raceWeekRequestCode(round: Int): Int? {
+    if (round !in 1..MAX_REMINDER_ROUND) {
+        return null
+    }
+    return RACE_WEEK_REQUEST_CODE_BASE + round
+}
+
+internal fun raceWeekRequestCodes(): List<Int> {
+    return (1..MAX_REMINDER_ROUND).map { raceWeekRequestCode(it)!! }
+}
+
+internal fun raceWeekTrigger(raceStart: Instant, zone: ZoneId): Instant {
+    val monday = raceStart.atZone(zone).toLocalDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    return monday.atTime(LocalTime.of(9, 0)).atZone(zone).toInstant()
+}
+
 internal fun scheduleRemindersFor(loadedSeason: Int, currentYear: Int): Boolean {
     return loadedSeason == currentYear
 }
@@ -66,10 +88,28 @@ fun planReminders(
     schedule: SeasonSchedule,
     preferences: ReminderPreferences,
     now: Instant,
+    zone: ZoneId = ZoneId.systemDefault(),
 ): List<PlannedReminder> {
     val planned = mutableListOf<PlannedReminder>()
     for (weekend in schedule.events) {
         val title = weekend.name.ifBlank { "Round ${weekend.round}" }
+        if (preferences.raceWeek) {
+            val race = weekend.sessions.firstOrNull { it.type == "R" && !it.cancelled }
+            val requestCode = raceWeekRequestCode(weekend.round)
+            if (race != null && requestCode != null) {
+                val triggerAt = raceWeekTrigger(race.start, zone)
+                if (triggerAt.isAfter(now)) {
+                    planned.add(
+                        PlannedReminder(
+                            requestCode = requestCode,
+                            triggerAt = triggerAt,
+                            title = title,
+                            text = "Race week is scheduled to begin",
+                        ),
+                    )
+                }
+            }
+        }
         for (session in weekend.sessions) {
             if (session.cancelled || session.type !in preferences.enabledTypes) {
                 continue

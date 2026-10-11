@@ -20,7 +20,7 @@ class SessionReminderScheduler(private val context: Context) {
     fun clear() {
         val alarmManager = alarmManager() ?: return
         // A session that left the calendar must not keep the alarm from the previous pass.
-        for (requestCode in seasonReminderRequestCodes()) {
+        for (requestCode in seasonReminderRequestCodes() + raceWeekRequestCodes()) {
             alarmManager.cancel(pendingIntent(requestCode, title = null, text = null))
         }
     }

@@ -121,6 +121,16 @@ fun RemindersScreen(
                 },
             )
         }
+        Text("Race week", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Monday at 9:00 in this phone's local time, in the week that contains the race.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        ToggleRow(
+            label = "Monday at 9:00",
+            checked = preferences.raceWeek,
+            onChecked = { onPreferences(preferences.copy(raceWeek = it)) },
+        )
         Text("When", style = MaterialTheme.typography.titleMedium)
         ToggleRow(
             label = "60 minutes before",
