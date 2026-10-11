@@ -1,0 +1,76 @@
+package com.formulatracker.reminders
+
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import com.formulatracker.schedule.SeasonSchedule
+import java.time.Instant
+
+class SessionReminderScheduler(private val context: Context) {
+    fun replace(schedule: SeasonSchedule, preferences: ReminderPreferences, now: Instant = Instant.now()) {
+        // Android drops these alarms on reboot. They are set again the next time the calendar loads.
+        clear()
+        for (reminder in planReminders(schedule, preferences, now)) {
+            schedule(reminder)
+        }
+    }
+
+    fun clear() {
+        val alarmManager = alarmManager() ?: return
+        // A session that left the calendar must not keep the alarm from the previous pass.
+        for (requestCode in seasonReminderRequestCodes()) {
+            alarmManager.cancel(pendingIntent(requestCode, title = null, text = null))
+        }
+    }
+
+    fun scheduleTest(now: Instant = Instant.now()) {
+        schedule(
+            PlannedReminder(
+                requestCode = TEST_REMINDER_REQUEST_CODE,
+                triggerAt = now.plusSeconds(60),
+                title = "FormulaTracker",
+                text = "This is a scheduled reminder",
+            ),
+        )
+    }
+
+    fun exactAlarmsAllowed(): Boolean {
+        val alarmManager = alarmManager() ?: return false
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+    }
+
+    private fun schedule(reminder: PlannedReminder) {
+        val alarmManager = alarmManager() ?: return
+        val pending = pendingIntent(reminder.requestCode, reminder.title, reminder.text)
+        val triggerAt = reminder.triggerAt.toEpochMilli()
+        if (exactAlarmsAllowed()) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+        } else {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+        }
+    }
+
+    private fun pendingIntent(requestCode: Int, title: String?, text: String?): PendingIntent {
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+            if (title != null) {
+                putExtra(ReminderReceiver.EXTRA_TITLE, title)
+            }
+            if (text != null) {
+                putExtra(ReminderReceiver.EXTRA_TEXT, text)
+            }
+            putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, requestCode)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun alarmManager(): AlarmManager? {
+        return context.getSystemService(AlarmManager::class.java)
+    }
+}

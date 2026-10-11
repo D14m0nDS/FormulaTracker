@@ -30,7 +30,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.formulatracker.reminders.ReminderSettings
+import com.formulatracker.reminders.SessionReminderScheduler
 import com.formulatracker.schedule.FIRST_SEASON_YEAR
 import com.formulatracker.schedule.HttpScheduleSource
 import com.formulatracker.schedule.RaceWeekend
@@ -39,7 +42,9 @@ import com.formulatracker.schedule.seasonYears
 import com.formulatracker.schedule.ScheduledSession
 import com.formulatracker.schedule.SeasonSchedule
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.Year
 import java.time.ZoneId
@@ -62,6 +67,10 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<ScheduleUiState>(ScheduleUiState.Loading) }
     var opened by remember { mutableStateOf<Opened>(Opened.None) }
+    val appContext = LocalContext.current.applicationContext
+    val reminderSettings = remember { ReminderSettings(appContext) }
+    val reminderScheduler = remember { SessionReminderScheduler(appContext) }
+    var reminderPreferences by remember { mutableStateOf(reminderSettings.read()) }
 
     LaunchedEffect(seasonYear, attempt, opened) {
         if (opened != Opened.None) {
@@ -77,6 +86,19 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         } catch (error: Exception) {
             ensureActive()
             ScheduleUiState.Failed(error.message ?: "Couldn't load the schedule")
+        }
+    }
+
+    LaunchedEffect(state, reminderPreferences, seasonYear) {
+        val ready = state as? ScheduleUiState.Ready
+        if (ready != null && ready.schedule.season == seasonYear) {
+            withContext(Dispatchers.IO) {
+                reminderScheduler.replace(ready.schedule, reminderPreferences)
+            }
+        } else if (ready != null && ready.schedule.season != seasonYear) {
+            withContext(Dispatchers.IO) {
+                reminderScheduler.clear()
+            }
         }
     }
 
@@ -103,25 +125,24 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
                     }
                 },
                 navigationIcon = {
-                    if (weekend != null) {
-                        TextButton(onClick = { opened = Opened.None }) {
-                            Text("Calendar")
-                        }
-                    }
-                },
-                actions = {
-                    when (opened) {
-                        Opened.None -> {
-                            TextButton(onClick = { opened = Opened.Standings }) {
-                                Text("Standings")
-                            }
-                        }
-                        Opened.Standings -> {
+                    when {
+                        weekend != null || opened == Opened.Standings || opened == Opened.Reminders -> {
                             TextButton(onClick = { opened = Opened.None }) {
                                 Text("Calendar")
                             }
                         }
-                        is Opened.Weekend -> Unit
+                        else -> {
+                            TextButton(onClick = { opened = Opened.Reminders }) {
+                                Text("Reminders")
+                            }
+                        }
+                    }
+                },
+                actions = {
+                    if (opened == Opened.None) {
+                        TextButton(onClick = { opened = Opened.Standings }) {
+                            Text("Standings")
+                        }
                     }
                 },
             )
@@ -136,6 +157,17 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
             opened == Opened.Standings -> {
                 Column(modifier = Modifier.padding(innerPadding)) {
                     StandingsScreen(year = seasonYear, source = source)
+                }
+            }
+            opened == Opened.Reminders -> {
+                Column(modifier = Modifier.padding(innerPadding)) {
+                    RemindersScreen(
+                        preferences = reminderPreferences,
+                        onPreferences = { next ->
+                            reminderSettings.write(next)
+                            reminderPreferences = next
+                        },
+                    )
                 }
             }
             else -> {
@@ -154,6 +186,7 @@ private sealed interface Opened {
     data object None : Opened
     data class Weekend(val weekend: RaceWeekend) : Opened
     data object Standings : Opened
+    data object Reminders : Opened
 }
 
 @Composable
