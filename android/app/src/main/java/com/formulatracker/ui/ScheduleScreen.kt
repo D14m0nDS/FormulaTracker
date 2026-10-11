@@ -39,8 +39,7 @@ import com.formulatracker.schedule.seasonYears
 import com.formulatracker.schedule.ScheduledSession
 import com.formulatracker.schedule.SeasonSchedule
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 import java.time.Instant
 import java.time.Year
 import java.time.ZoneId
@@ -70,10 +69,13 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         }
         state = ScheduleUiState.Loading
         state = try {
-            ScheduleUiState.Ready(withContext(Dispatchers.IO) { source.fetch(seasonYear) })
+            val schedule = source.fetch(seasonYear)
+            ensureActive()
+            ScheduleUiState.Ready(schedule)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
+            ensureActive()
             ScheduleUiState.Failed(error.message ?: "Couldn't load the schedule")
         }
     }

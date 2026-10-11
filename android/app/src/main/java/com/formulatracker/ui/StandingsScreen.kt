@@ -26,12 +26,12 @@ import com.formulatracker.standings.ConstructorStanding
 import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 
 internal const val STANDINGS_GIVE_UP_MILLIS = 8_000L
 private const val STANDINGS_RETRY_PAUSE_MILLIS = 1_000L
+private const val STANDINGS_SETTLE_MILLIS = 400L
 
 internal fun standingsStillLoading(startedAtMillis: Long, nowMillis: Long): Boolean {
     return nowMillis - startedAtMillis < STANDINGS_GIVE_UP_MILLIS
@@ -59,14 +59,19 @@ fun StandingsScreen(
 
     LaunchedEffect(year, attempt) {
         state = StandingsUiState.Loading
+        delay(STANDINGS_SETTLE_MILLIS)
+        ensureActive()
         val startedAt = System.currentTimeMillis()
         while (true) {
             try {
-                state = StandingsUiState.Ready(withContext(Dispatchers.IO) { source.fetchStandings(year) })
+                val standings = source.fetchStandings(year)
+                ensureActive()
+                state = StandingsUiState.Ready(standings)
                 return@LaunchedEffect
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
+                ensureActive()
                 if (!standingsStillLoading(startedAt, System.currentTimeMillis())) {
                     state = StandingsUiState.Failed("Couldn't load standings")
                     return@LaunchedEffect

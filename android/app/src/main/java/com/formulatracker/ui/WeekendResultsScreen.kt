@@ -136,7 +136,7 @@ private fun RaceTable(results: RaceResults) {
     }
 }
 
-private fun loadSection(
+private suspend fun loadSection(
     source: ScheduleSource,
     year: Int,
     round: Int,
