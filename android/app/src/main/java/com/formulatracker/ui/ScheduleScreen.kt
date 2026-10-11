@@ -1,5 +1,7 @@
 package com.formulatracker.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,6 +14,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +51,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     val year = remember { Year.now().value }
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<ScheduleUiState>(ScheduleUiState.Loading) }
+    var selected by remember { mutableStateOf<RaceWeekend?>(null) }
 
     LaunchedEffect(year, attempt) {
         state = ScheduleUiState.Loading
@@ -58,16 +62,38 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         }
     }
 
+    BackHandler(enabled = selected != null) {
+        selected = null
+    }
+
+    val season = (state as? ScheduleUiState.Ready)?.schedule?.season ?: year
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(titleFor(state, year)) })
+            TopAppBar(
+                title = { Text(selected?.name ?: "$season season") },
+                navigationIcon = {
+                    if (selected != null) {
+                        TextButton(onClick = { selected = null }) {
+                            Text("Calendar")
+                        }
+                    }
+                },
+            )
         },
     ) { innerPadding ->
-        ScheduleContent(
-            state = state,
-            onRetry = { attempt += 1 },
-            modifier = Modifier.padding(innerPadding),
-        )
+        val weekend = selected
+        if (weekend == null) {
+            ScheduleContent(
+                state = state,
+                onRetry = { attempt += 1 },
+                onWeekend = { selected = it },
+                modifier = Modifier.padding(innerPadding),
+            )
+        } else {
+            Column(modifier = Modifier.padding(innerPadding)) {
+                WeekendResultsScreen(year = season, weekend = weekend, source = source)
+            }
+        }
     }
 }
 
@@ -75,6 +101,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
 fun ScheduleContent(
     state: ScheduleUiState,
     onRetry: () -> Unit,
+    onWeekend: (RaceWeekend) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (state) {
@@ -102,7 +129,7 @@ fun ScheduleContent(
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     items(state.schedule.events, key = { it.round }) { weekend ->
-                        WeekendSection(weekend)
+                        WeekendSection(weekend, onClick = { onWeekend(weekend) })
                     }
                 }
             }
@@ -111,8 +138,11 @@ fun ScheduleContent(
 }
 
 @Composable
-private fun WeekendSection(weekend: RaceWeekend) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun WeekendSection(weekend: RaceWeekend, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.clickable(onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Text(
             text = "Round ${weekend.round} · ${weekend.name}",
             style = MaterialTheme.typography.titleMedium,
@@ -142,11 +172,6 @@ internal fun formatSessionStart(start: Instant, zone: ZoneId, locale: Locale): S
     val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .withLocale(locale)
     return formatter.format(start.atZone(zone))
-}
-
-private fun titleFor(state: ScheduleUiState, requestedYear: Int): String {
-    val season = (state as? ScheduleUiState.Ready)?.schedule?.season ?: requestedYear
-    return "$season season"
 }
 
 private fun circuitLine(weekend: RaceWeekend): String {
