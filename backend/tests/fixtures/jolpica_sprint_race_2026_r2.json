@@ -1,0 +1,45 @@
+{
+  "data": {
+    "code": "SR",
+    "title": "Sprint Race",
+    "timestamp": "2026-03-14T03:00:00Z",
+    "timezone": "Asia/Shanghai",
+    "season": {"year": 2026},
+    "round": {"id": "round_hidden_china", "number": 2, "name": "Chinese Grand Prix"},
+    "component_keys": ["GRID", "FLAP"],
+    "results": [
+      {
+        "driver": {"id": "driver_hidden_rus", "abbreviation": "RUS", "given_name": "George", "family_name": "Russell"},
+        "team": {"id": "team_hidden_mercedes", "name": "Mercedes"},
+        "position": 1,
+        "position_text": "1",
+        "time": "33:38.998",
+        "is_classified": true,
+        "status": "FINISHED",
+        "points": 8.0,
+        "laps": 19,
+        "car_number": 63,
+        "components": {
+          "GRID": {"position": 1},
+          "FLAP": {"position": 4, "time": "1:35.101"}
+        }
+      },
+      {
+        "driver": {"abbreviation": "BOT", "given_name": "Valtteri", "family_name": "Bottas"},
+        "team": {"name": "Cadillac F1 Team"},
+        "position": 21,
+        "position_text": "NC",
+        "time": "20:58.952",
+        "is_classified": false,
+        "status": "RETIRED",
+        "points": 0.0,
+        "laps": 12,
+        "car_number": 77,
+        "components": {
+          "GRID": {"position": 20},
+          "FLAP": {"position": 22, "time": "1:39.262"}
+        }
+      }
+    ]
+  }
+}

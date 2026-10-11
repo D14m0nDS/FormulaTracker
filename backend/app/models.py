@@ -79,3 +79,37 @@ class SessionResults(BaseModel):
     @field_serializer("start")
     def serialize_start(self, value: datetime) -> str:
         return format_utc(value)
+
+
+class FastestLap(BaseModel):
+    position: int | None = None
+    time: str | None = None
+
+
+class RaceEntry(BaseModel):
+    position: int | None = None
+    position_text: str
+    classified: bool
+    status: str | None = None
+    time: str | None = None
+    points: float | None = None
+    laps: int | None = None
+    grid: int | None = None
+    fastest_lap: FastestLap | None = None
+    driver: Driver
+    team: str
+
+
+class RaceResults(BaseModel):
+    season: int
+    round: int
+    event_name: str
+    session_type: str
+    session_name: str
+    start: datetime
+    timezone: str | None = None
+    results: list[RaceEntry]
+
+    @field_serializer("start")
+    def serialize_start(self, value: datetime) -> str:
+        return format_utc(value)

@@ -6,6 +6,7 @@ import pytest
 
 from app.normalize import (
     ProviderPayloadError,
+    normalize_race_results,
     normalize_schedule,
     normalize_session_results,
     read_schedule,
@@ -202,6 +203,48 @@ def test_sprint_qualifying_uses_the_same_segment_shape():
     assert results.event_name == "Chinese Grand Prix"
     assert results.results[0].segments[2].code == "SQ3"
     assert results.results[0].segments[2].time == "1:31.520"
+
+
+def test_race_results_use_grid_points_and_elapsed_time():
+    results = normalize_race_results(
+        json.loads((FIXTURE.parent / "jolpica_race_2026_r1.json").read_text(encoding="utf-8")),
+        season=2026,
+        round_number=1,
+        session_type="R",
+    )
+    winner, lapped, retired, dns = results.results
+
+    assert results.session_name == "Race"
+    assert winner.points == 25
+    assert winner.laps == 58
+    assert winner.grid == 1
+    assert winner.time == "1:23:06.801"
+    assert winner.fastest_lap is not None
+    assert winner.fastest_lap.time == "1:22.670"
+    assert lapped.status == "LAPPED"
+    assert lapped.laps == 57
+    assert retired.position_text == "NC"
+    assert retired.classified is False
+    assert retired.time == "24:31.911"
+    assert dns.status == "DID_NOT_START"
+    assert dns.time is None
+    assert dns.grid == 5
+    assert dns.fastest_lap is None
+    assert "driver_hidden" not in results.model_dump_json()
+
+
+def test_sprint_race_uses_the_same_shape_with_sprint_points():
+    results = normalize_race_results(
+        json.loads((FIXTURE.parent / "jolpica_sprint_race_2026_r2.json").read_text(encoding="utf-8")),
+        season=2026,
+        round_number=2,
+        session_type="SR",
+    )
+
+    assert results.session_type == "SR"
+    assert results.results[0].points == 8
+    assert results.results[0].laps == 19
+    assert results.results[1].status == "RETIRED"
 
 
 def _payload(events: list[dict]) -> dict:

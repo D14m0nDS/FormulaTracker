@@ -8,8 +8,10 @@ from app.jolpica import (
     ResultsNotFound,
     ScheduleService,
 )
-from app.models import SessionResults
-from app.normalize import ProviderPayloadError, normalize_session_results
+from app.models import RaceResults, SessionResults
+from app.normalize import ProviderPayloadError, normalize_race_results, normalize_session_results
+
+ResultSet = SessionResults | RaceResults
 
 
 class RoundNotFound(Exception):
@@ -31,10 +33,10 @@ class ResultsService:
         self._schedules = schedules
         self._client = client
         self._ttl_seconds = ttl_seconds
-        self._cache: dict[tuple[int, int, str], tuple[float, SessionResults]] = {}
+        self._cache: dict[tuple[int, int, str], tuple[float, ResultSet]] = {}
         self._lock = asyncio.Lock()
 
-    async def get_results(self, year: int, round_number: int, session_type: str) -> SessionResults:
+    async def get_results(self, year: int, round_number: int, session_type: str) -> ResultSet:
         key = (year, round_number, session_type)
         cached = self._read_cache(key)
         if cached is not None:
@@ -48,7 +50,7 @@ class ResultsService:
             self._cache[key] = (time.monotonic() + self._ttl_seconds, results)
             return results
 
-    async def _fetch(self, year: int, round_number: int, session_type: str) -> SessionResults:
+    async def _fetch(self, year: int, round_number: int, session_type: str) -> ResultSet:
         # Public routes use the season round number. Jolpica results are
         # addressed by an opaque round id that stays inside this lookup.
         season = await self._schedules.load(year)
@@ -63,6 +65,13 @@ class ResultsService:
 
         payload = await self._client.fetch_results(provider_round.provider_id, session_type)
         try:
+            if session_type in {"R", "SR"}:
+                return normalize_race_results(
+                    payload,
+                    season=year,
+                    round_number=round_number,
+                    session_type=session_type,
+                )
             return normalize_session_results(
                 payload,
                 season=year,
@@ -72,7 +81,7 @@ class ResultsService:
         except ProviderPayloadError as exc:
             raise ProviderUnavailable("unexpected payload") from exc
 
-    def _read_cache(self, key: tuple[int, int, str]) -> SessionResults | None:
+    def _read_cache(self, key: tuple[int, int, str]) -> ResultSet | None:
         item = self._cache.get(key)
         if item is None:
             return None

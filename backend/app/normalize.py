@@ -6,6 +6,9 @@ from app.models import (
     ClassificationEntry,
     Driver,
     Event,
+    FastestLap,
+    RaceEntry,
+    RaceResults,
     SeasonSchedule,
     SegmentResult,
     Session,
@@ -59,6 +62,58 @@ def normalize_session_results(
     round_number: int,
     session_type: str,
 ) -> SessionResults:
+    _data, title, start, event_name, timezone_name, rows = _open_results(
+        payload,
+        season=season,
+        round_number=round_number,
+        session_type=session_type,
+    )
+    segment_codes = _segment_codes(_data.get("component_keys"))
+    return SessionResults(
+        season=season,
+        round=round_number,
+        event_name=event_name,
+        session_type=session_type,
+        session_name=title,
+        start=start,
+        timezone=timezone_name,
+        segment_codes=segment_codes,
+        results=[entry for row in rows if (entry := _classification(row, segment_codes)) is not None],
+    )
+
+
+def normalize_race_results(
+    payload: dict,
+    *,
+    season: int,
+    round_number: int,
+    session_type: str,
+) -> RaceResults:
+    _data, title, start, event_name, timezone_name, rows = _open_results(
+        payload,
+        season=season,
+        round_number=round_number,
+        session_type=session_type,
+    )
+    return RaceResults(
+        season=season,
+        round=round_number,
+        event_name=event_name,
+        session_type=session_type,
+        session_name=title,
+        start=start,
+        timezone=timezone_name,
+        results=[entry for row in rows if (entry := _race_entry(row)) is not None],
+    )
+
+
+def _open_results(
+    payload: dict,
+    *,
+    season: int,
+    round_number: int,
+    session_type: str,
+) -> tuple[dict, str, datetime, str, str | None, list]:
     data = payload.get("data")
     if not isinstance(data, dict):
         raise ProviderPayloadError("results payload has no data object")
@@ -75,22 +130,18 @@ def normalize_session_results(
     if not isinstance(title, str) or not title or start is None or not event_name:
         raise ProviderPayloadError("results payload is missing session identity")
 
-    segment_codes = _segment_codes(data.get("component_keys"))
     rows = data.get("results")
     if not isinstance(rows, list):
         raise ProviderPayloadError("results payload has no results list")
 
     timezone_name = data.get("timezone")
-    return SessionResults(
-        season=season,
-        round=round_number,
-        event_name=event_name,
-        session_type=session_type,
-        session_name=title,
-        start=start,
-        timezone=timezone_name if isinstance(timezone_name, str) and timezone_name else None,
-        segment_codes=segment_codes,
-        results=[entry for row in rows if (entry := _classification(row, segment_codes)) is not None],
+    return (
+        data,
+        title,
+        start,
+        event_name,
+        timezone_name if isinstance(timezone_name, str) and timezone_name else None,
+        rows,
     )
 
 
@@ -253,6 +304,70 @@ def _classification(row: object, segment_codes: list[str]) -> ClassificationEntr
     )
 
 
+def _race_entry(row: object) -> RaceEntry | None:
+    if not isinstance(row, dict):
+        return None
+    driver = _driver(row.get("driver"), row.get("car_number"))
+    team = _nested_text(row.get("team"), "name")
+    if driver is None or not team:
+        return None
+
+    position = row.get("position")
+    position_value = position if isinstance(position, int) and not isinstance(position, bool) else None
+    position_text = row.get("position_text")
+    if not isinstance(position_text, str) or not position_text:
+        position_text = str(position_value) if position_value is not None else ""
+
+    status = row.get("status")
+    time = row.get("time")
+    components = row.get("components")
+    component_map = components if isinstance(components, dict) else {}
+    return RaceEntry(
+        position=position_value,
+        position_text=position_text,
+        classified=row.get("is_classified") is True,
+        status=status if isinstance(status, str) and status else None,
+        time=time if isinstance(time, str) and time else None,
+        points=_decimal(row.get("points")),
+        laps=_whole(row.get("laps")),
+        grid=_grid(component_map),
+        fastest_lap=_fastest_lap(component_map),
+        driver=driver,
+        team=team,
+    )
+
+
+def _grid(components: dict) -> int | None:
+    grid = components.get("GRID")
+    if not isinstance(grid, dict):
+        return None
+    return _whole(grid.get("position"))
+
+
+def _fastest_lap(components: dict) -> FastestLap | None:
+    flap = components.get("FLAP")
+    if not isinstance(flap, dict):
+        return None
+    position = _whole(flap.get("position"))
+    time = flap.get("time")
+    time_value = time if isinstance(time, str) and time else None
+    if position is None and time_value is None:
+        return None
+    return FastestLap(position=position, time=time_value)
+
+
+def _decimal(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _whole(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
 def _driver(raw: object, car_number: object) -> Driver | None:
     if not isinstance(raw, dict):
         return None
@@ -267,7 +382,7 @@ def _driver(raw: object, car_number: object) -> Driver | None:
         code=code,
         given_name=given_name,
         family_name=family_name,
-        number=car_number if isinstance(car_number, int) else None,
+        number=_whole(car_number),
     )
 
 

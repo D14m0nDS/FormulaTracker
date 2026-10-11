@@ -1,0 +1,75 @@
+{
+  "data": {
+    "code": "R",
+    "title": "Race",
+    "timestamp": "2026-03-08T04:00:00Z",
+    "timezone": "Australia/Melbourne",
+    "season": {"year": 2026},
+    "round": {"id": "round_hidden_australia", "number": 1, "name": "Australian Grand Prix"},
+    "component_keys": ["GRID", "FLAP"],
+    "results": [
+      {
+        "driver": {"id": "driver_hidden_rus", "abbreviation": "RUS", "given_name": "George", "family_name": "Russell"},
+        "team": {"id": "team_hidden_mercedes", "name": "Mercedes"},
+        "position": 1,
+        "position_text": "1",
+        "time": "1:23:06.801",
+        "is_classified": true,
+        "status": "FINISHED",
+        "points": 25.0,
+        "laps": 58,
+        "car_number": 63,
+        "components": {
+          "GRID": {"position": 1},
+          "FLAP": {"position": 6, "time": "1:22.670"}
+        }
+      },
+      {
+        "driver": {"abbreviation": "LIN", "given_name": "Arvid", "family_name": "Lindblad"},
+        "team": {"name": "RB F1 Team"},
+        "position": 8,
+        "position_text": "8",
+        "time": "1:23:18.617",
+        "is_classified": true,
+        "status": "LAPPED",
+        "points": 4.0,
+        "laps": 57,
+        "car_number": 41,
+        "components": {
+          "GRID": {"position": 9},
+          "FLAP": {"position": 12, "time": "1:24.182"}
+        }
+      },
+      {
+        "driver": {"abbreviation": "BOT", "given_name": "Valtteri", "family_name": "Bottas"},
+        "team": {"name": "Cadillac F1 Team"},
+        "position": 19,
+        "position_text": "NC",
+        "time": "24:31.911",
+        "is_classified": false,
+        "status": "RETIRED",
+        "points": 0.0,
+        "laps": 15,
+        "car_number": 77,
+        "components": {
+          "GRID": {"position": 19},
+          "FLAP": {"position": 20, "time": "1:27.364"}
+        }
+      },
+      {
+        "driver": {"abbreviation": "PIA", "given_name": "Oscar", "family_name": "Piastri"},
+        "team": {"name": "McLaren"},
+        "position": 21,
+        "position_text": "NC",
+        "is_classified": false,
+        "status": "DID_NOT_START",
+        "points": 0.0,
+        "laps": 0,
+        "car_number": 81,
+        "components": {
+          "GRID": {"position": 5}
+        }
+      }
+    ]
+  }
+}

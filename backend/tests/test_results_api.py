@@ -14,6 +14,8 @@ QUALIFYING = json.loads((FIXTURES / "jolpica_qualifying_2026_r1.json").read_text
 SPRINT_QUALIFYING = json.loads(
     (FIXTURES / "jolpica_sprint_qualifying_2026_r2.json").read_text(encoding="utf-8")
 )
+RACE = json.loads((FIXTURES / "jolpica_race_2026_r1.json").read_text(encoding="utf-8"))
+SPRINT_RACE = json.loads((FIXTURES / "jolpica_sprint_race_2026_r2.json").read_text(encoding="utf-8"))
 
 
 def test_qualifying_route_uses_the_provider_round_id_and_caches():
@@ -84,12 +86,38 @@ def test_unknown_round_is_404():
     assert response.json()["detail"] == "Round not found"
 
 
-def test_race_results_are_not_this_endpoint():
+def test_race_and_sprint_race_routes():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/f1/alpha/schedules/2026/":
+            return httpx.Response(200, json=SCHEDULE)
+        if request.url.path == "/f1/alpha/results/round_hidden_australia/R/":
+            return httpx.Response(200, json=RACE)
+        if request.url.path == "/f1/alpha/results/round_hidden_china/SR/":
+            return httpx.Response(200, json=SPRINT_RACE)
+        return httpx.Response(404)
+
+    with _client(handler) as client:
+        race = client.get("/seasons/2026/rounds/1/sessions/R/results")
+        sprint = client.get("/seasons/2026/rounds/2/sessions/SR/results")
+        missing = client.get("/seasons/2026/rounds/1/sessions/SR/results")
+
+    assert race.status_code == 200
+    assert race.json()["results"][0]["points"] == 25
+    assert race.json()["results"][0]["grid"] == 1
+    assert "segment_codes" not in race.json()
+    assert sprint.status_code == 200
+    assert sprint.json()["session_type"] == "SR"
+    assert sprint.json()["results"][0]["points"] == 8
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Session not on this round"
+
+
+def test_practice_results_are_not_this_endpoint():
     def handler(_request: httpx.Request) -> httpx.Response:
         raise AssertionError("provider should not be called")
 
     with _client(handler) as client:
-        response = client.get("/seasons/2026/rounds/1/sessions/R/results")
+        response = client.get("/seasons/2026/rounds/1/sessions/FP1/results")
 
     assert response.status_code == 422
 
