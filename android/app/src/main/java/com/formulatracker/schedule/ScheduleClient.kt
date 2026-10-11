@@ -3,6 +3,8 @@ package com.formulatracker.schedule
 import com.formulatracker.results.ResultsNotFound
 import com.formulatracker.results.SessionResults
 import com.formulatracker.results.parseSessionResults
+import com.formulatracker.standings.SeasonStandings
+import com.formulatracker.standings.parseStandings
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -11,6 +13,8 @@ interface ScheduleSource {
     fun fetch(year: Int): SeasonSchedule
 
     fun fetchResults(year: Int, round: Int, sessionType: String): SessionResults
+
+    fun fetchStandings(year: Int): SeasonStandings
 }
 
 class HttpScheduleSource(
@@ -27,6 +31,14 @@ class HttpScheduleSource(
     override fun fetchResults(year: Int, round: Int, sessionType: String): SessionResults {
         val body = get("/seasons/$year/rounds/$round/sessions/$sessionType/results")
         return parseSessionResults(body, sessionType)
+    }
+
+    override fun fetchStandings(year: Int): SeasonStandings {
+        return try {
+            parseStandings(get("/seasons/$year/standings"))
+        } catch (_: ResultsNotFound) {
+            throw IOException("Standings not found")
+        }
     }
 
     private fun get(path: String): String {

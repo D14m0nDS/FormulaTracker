@@ -51,7 +51,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     val year = remember { Year.now().value }
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<ScheduleUiState>(ScheduleUiState.Loading) }
-    var selected by remember { mutableStateOf<RaceWeekend?>(null) }
+    var opened by remember { mutableStateOf<Opened>(Opened.None) }
 
     LaunchedEffect(year, attempt) {
         state = ScheduleUiState.Loading
@@ -62,39 +62,68 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         }
     }
 
-    BackHandler(enabled = selected != null) {
-        selected = null
+    BackHandler(enabled = opened != Opened.None) {
+        opened = Opened.None
     }
 
     val season = (state as? ScheduleUiState.Ready)?.schedule?.season ?: year
+    val weekend = (opened as? Opened.Weekend)?.weekend
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(selected?.name ?: "$season season") },
+                title = {
+                    Text(
+                        when {
+                            weekend != null -> weekend.name
+                            opened == Opened.Standings -> "Standings"
+                            else -> "$season season"
+                        },
+                    )
+                },
                 navigationIcon = {
-                    if (selected != null) {
-                        TextButton(onClick = { selected = null }) {
+                    if (opened != Opened.None) {
+                        TextButton(onClick = { opened = Opened.None }) {
                             Text("Calendar")
+                        }
+                    }
+                },
+                actions = {
+                    if (opened == Opened.None) {
+                        TextButton(onClick = { opened = Opened.Standings }) {
+                            Text("Standings")
                         }
                     }
                 },
             )
         },
     ) { innerPadding ->
-        val weekend = selected
-        if (weekend == null) {
-            ScheduleContent(
-                state = state,
-                onRetry = { attempt += 1 },
-                onWeekend = { selected = it },
-                modifier = Modifier.padding(innerPadding),
-            )
-        } else {
-            Column(modifier = Modifier.padding(innerPadding)) {
-                WeekendResultsScreen(year = season, weekend = weekend, source = source)
+        when {
+            weekend != null -> {
+                Column(modifier = Modifier.padding(innerPadding)) {
+                    WeekendResultsScreen(year = season, weekend = weekend, source = source)
+                }
+            }
+            opened == Opened.Standings -> {
+                Column(modifier = Modifier.padding(innerPadding)) {
+                    StandingsScreen(year = season, source = source)
+                }
+            }
+            else -> {
+                ScheduleContent(
+                    state = state,
+                    onRetry = { attempt += 1 },
+                    onWeekend = { opened = Opened.Weekend(it) },
+                    modifier = Modifier.padding(innerPadding),
+                )
             }
         }
     }
+}
+
+private sealed interface Opened {
+    data object None : Opened
+    data class Weekend(val weekend: RaceWeekend) : Opened
+    data object Standings : Opened
 }
 
 @Composable
