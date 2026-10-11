@@ -8,10 +8,15 @@ from app.jolpica import (
     ResultsNotFound,
     ScheduleService,
 )
-from app.models import RaceResults, SessionResults
-from app.normalize import ProviderPayloadError, normalize_race_results, normalize_session_results
+from app.models import PracticeResults, RaceResults, SessionResults
+from app.normalize import (
+    ProviderPayloadError,
+    normalize_practice_results,
+    normalize_race_results,
+    normalize_session_results,
+)
 
-ResultSet = SessionResults | RaceResults
+ResultSet = SessionResults | RaceResults | PracticeResults
 
 
 class RoundNotFound(Exception):
@@ -67,6 +72,13 @@ class ResultsService:
         try:
             if session_type in {"R", "SR"}:
                 return normalize_race_results(
+                    payload,
+                    season=year,
+                    round_number=round_number,
+                    session_type=session_type,
+                )
+            if session_type in {"FP1", "FP2", "FP3"}:
+                return normalize_practice_results(
                     payload,
                     season=year,
                     round_number=round_number,

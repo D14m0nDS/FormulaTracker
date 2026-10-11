@@ -6,6 +6,7 @@ import pytest
 
 from app.normalize import (
     ProviderPayloadError,
+    normalize_practice_results,
     normalize_race_results,
     normalize_schedule,
     normalize_session_results,
@@ -203,6 +204,30 @@ def test_sprint_qualifying_uses_the_same_segment_shape():
     assert results.event_name == "Chinese Grand Prix"
     assert results.results[0].segments[2].code == "SQ3"
     assert results.results[0].segments[2].time == "1:31.520"
+
+
+def test_practice_results_keep_best_lap_and_laps():
+    results = normalize_practice_results(
+        json.loads((FIXTURE.parent / "jolpica_practice_2026_r1.json").read_text(encoding="utf-8")),
+        season=2026,
+        round_number=1,
+        session_type="FP1",
+    )
+    leader, midfield, unclassified = results.results
+
+    assert results.session_name == "Practice 1"
+    assert leader.time == "1:20.267"
+    assert leader.laps == 33
+    assert leader.driver.code == "LEC"
+    assert leader.team == "Ferrari"
+    assert midfield.laps == 18
+    assert unclassified.position_text == "NC"
+    assert unclassified.classified is False
+    assert unclassified.time is None
+    assert unclassified.laps == 2
+    dumped = results.model_dump_json()
+    assert "driver_hidden" not in dumped
+    assert "points" not in dumped
 
 
 def test_race_results_use_grid_points_and_elapsed_time():

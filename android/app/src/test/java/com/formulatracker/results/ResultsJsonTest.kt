@@ -49,9 +49,23 @@ class ResultsJsonTest {
     }
 
     @Test
-    fun practiceResultsAreRejected() {
+    fun practiceReadsBestLapAndLaps() {
+        val results = parseSessionResults(PRACTICE, "FP1") as SessionResults.Practice
+        val leader = results.results.rows[0]
+        val unclassified = results.results.rows[1]
+
+        assertEquals("Practice 1", results.results.sessionName)
+        assertEquals("1:20.267", leader.time)
+        assertEquals(33, leader.laps)
+        assertEquals("NC", unclassified.positionText)
+        assertNull(unclassified.time)
+        assertEquals(2, unclassified.laps)
+    }
+
+    @Test
+    fun unknownSessionResultsAreRejected() {
         assertThrows(ScheduleParseException::class.java) {
-            parseSessionResults(QUALIFYING, "FP1")
+            parseSessionResults(QUALIFYING, "FP4")
         }
     }
 
@@ -86,6 +100,28 @@ class ResultsJsonTest {
                   "driver": {"code": "VER"},
                   "team": "Red Bull",
                   "segments": [{"code": "Q1"}]
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val PRACTICE = """
+            {
+              "session_type": "FP1",
+              "session_name": "Practice 1",
+              "results": [
+                {
+                  "position_text": "1",
+                  "time": "1:20.267",
+                  "laps": 33,
+                  "driver": {"code": "RUS"},
+                  "team": "Mercedes"
+                },
+                {
+                  "position_text": "NC",
+                  "laps": 2,
+                  "driver": {"code": "VER"},
+                  "team": "Red Bull"
                 }
               ]
             }

@@ -11,7 +11,7 @@ from app.jolpica import (
     SeasonNotFound,
     StandingsNotFound,
 )
-from app.models import RaceResults, SeasonSchedule, SeasonStandings, SessionResults
+from app.models import PracticeResults, RaceResults, SeasonSchedule, SeasonStandings, SessionResults
 from app.results import ResultsService, RoundNotFound, SessionNotScheduled
 from app.standings import StandingsService
 
@@ -77,14 +77,14 @@ def create_app(
 
     @app.get(
         "/seasons/{year}/rounds/{round}/sessions/{session_type}/results",
-        response_model=SessionResults | RaceResults,
+        response_model=SessionResults | RaceResults | PracticeResults,
     )
     async def session_results(
         year: int = Path(ge=1950, le=2100),
         round: int = Path(ge=1, le=30),
-        session_type: Literal["Q", "SQ", "R", "SR"] = Path(),
+        session_type: Literal["Q", "SQ", "R", "SR", "FP1", "FP2", "FP3"] = Path(),
         results_service: ResultsService = Depends(get_results),
-    ) -> SessionResults | RaceResults:
+    ) -> SessionResults | RaceResults | PracticeResults:
         try:
             return await results_service.get_results(year, round, session_type)
         except SeasonNotFound:

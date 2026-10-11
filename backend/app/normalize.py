@@ -7,6 +7,8 @@ from app.models import (
     Driver,
     Event,
     FastestLap,
+    PracticeEntry,
+    PracticeResults,
     RaceEntry,
     RaceResults,
     SeasonSchedule,
@@ -79,6 +81,31 @@ def normalize_session_results(
         timezone=timezone_name,
         segment_codes=segment_codes,
         results=[entry for row in rows if (entry := _classification(row, segment_codes)) is not None],
+    )
+
+
+def normalize_practice_results(
+    payload: dict,
+    *,
+    season: int,
+    round_number: int,
+    session_type: str,
+) -> PracticeResults:
+    _data, title, start, event_name, timezone_name, rows = _open_results(
+        payload,
+        season=season,
+        round_number=round_number,
+        session_type=session_type,
+    )
+    return PracticeResults(
+        season=season,
+        round=round_number,
+        event_name=event_name,
+        session_type=session_type,
+        session_name=title,
+        start=start,
+        timezone=timezone_name,
+        results=[entry for row in rows if (entry := _practice_entry(row)) is not None],
     )
 
 
@@ -301,6 +328,32 @@ def _classification(row: object, segment_codes: list[str]) -> ClassificationEntr
         driver=driver,
         team=team,
         segments=_segments(component_map, segment_codes),
+    )
+
+
+def _practice_entry(row: object) -> PracticeEntry | None:
+    # Practice `time` is the driver's best lap, not a session elapsed time.
+    if not isinstance(row, dict):
+        return None
+    driver = _driver(row.get("driver"), row.get("car_number"))
+    team = _nested_text(row.get("team"), "name")
+    if driver is None or not team:
+        return None
+
+    position = _whole(row.get("position"))
+    position_text = row.get("position_text")
+    if not isinstance(position_text, str) or not position_text:
+        position_text = str(position) if position is not None else ""
+
+    time = row.get("time")
+    return PracticeEntry(
+        position=position,
+        position_text=position_text,
+        classified=row.get("is_classified") is True,
+        time=time if isinstance(time, str) and time else None,
+        laps=_whole(row.get("laps")),
+        driver=driver,
+        team=team,
     )
 
 

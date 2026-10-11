@@ -4,11 +4,13 @@ import com.formulatracker.schedule.ScheduleParseException
 import org.json.JSONObject
 
 private val QUALIFYING_TYPES = setOf("Q", "SQ")
+private val PRACTICE_TYPES = setOf("FP1", "FP2", "FP3")
 private val RACE_TYPES = setOf("R", "SR")
 
 fun parseSessionResults(json: String, sessionType: String): SessionResults {
     return when (sessionType) {
         in QUALIFYING_TYPES -> SessionResults.Qualifying(parseQualifying(json))
+        in PRACTICE_TYPES -> SessionResults.Practice(parsePractice(json))
         in RACE_TYPES -> SessionResults.Race(parseRace(json))
         else -> throw ScheduleParseException("Results are not available for $sessionType")
     }
@@ -40,6 +42,32 @@ private fun parseQualifyingRow(row: JSONObject, segmentCodes: List<String>): Qua
         team = row.optString("team"),
         status = row.optString("status").ifEmpty { null },
         segments = segmentCodes.map { code -> SegmentTime(code, byCode[code]) },
+    )
+}
+
+private fun parsePractice(json: String): PracticeResults {
+    val root = JSONObject(json)
+    val rowsJson = root.optJSONArray("results")
+        ?: throw ScheduleParseException("Results are missing")
+    return PracticeResults(
+        sessionType = root.optString("session_type"),
+        sessionName = root.optString("session_name"),
+        rows = buildList {
+            for (index in 0 until rowsJson.length()) {
+                add(parsePracticeRow(rowsJson.getJSONObject(index)))
+            }
+        },
+    )
+}
+
+private fun parsePracticeRow(row: JSONObject): PracticeRow {
+    val driver = row.optJSONObject("driver")
+    return PracticeRow(
+        positionText = row.optString("position_text"),
+        code = driver?.optString("code").orEmpty(),
+        team = row.optString("team"),
+        time = row.optionalString("time"),
+        laps = row.optionalInt("laps"),
     )
 }
 

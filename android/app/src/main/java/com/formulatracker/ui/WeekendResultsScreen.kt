@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.formulatracker.results.PracticeResults
 import com.formulatracker.results.QualifyingResults
 import com.formulatracker.results.RaceResults
 import com.formulatracker.results.ResultsNotFound
@@ -29,7 +30,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val RESULT_TYPES = setOf("SQ", "SR", "Q", "R")
+private val RESULT_TYPES = setOf("FP1", "FP2", "FP3", "SQ", "SR", "Q", "R")
 
 sealed interface ResultSectionState {
     data object Loading : ResultSectionState
@@ -93,6 +94,7 @@ private fun ResultSection(title: String, state: ResultSectionState) {
             is ResultSectionState.Failed -> Text(state.message)
             is ResultSectionState.Ready -> when (val results = state.results) {
                 is SessionResults.Qualifying -> QualifyingTable(results.results)
+                is SessionResults.Practice -> PracticeTable(results.results)
                 is SessionResults.Race -> RaceTable(results.results)
             }
         }
@@ -108,6 +110,15 @@ private fun QualifyingTable(results: QualifyingResults) {
         }
         val status = if (row.status != null && row.status != "FINISHED") "  ${row.status}" else ""
         Text("${row.positionText}  ${row.code}  ${row.team}  $segments$status")
+    }
+}
+
+@Composable
+private fun PracticeTable(results: PracticeResults) {
+    results.rows.forEach { row ->
+        val time = row.time?.let { "  $it" }.orEmpty()
+        val laps = row.laps?.let { "  $it laps" }.orEmpty()
+        Text("${row.positionText}  ${row.code}  ${row.team}$time$laps")
     }
 }
 

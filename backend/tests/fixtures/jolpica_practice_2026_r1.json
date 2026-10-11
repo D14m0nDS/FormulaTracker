@@ -1,0 +1,64 @@
+{
+  "metadata": {"timestamp": "2026-10-11T19:30:00Z"},
+  "data": {
+    "code": "FP1",
+    "title": "Practice 1",
+    "timestamp": "2026-03-06T01:30:00Z",
+    "timezone": "Australia/Melbourne",
+    "season": {"id": "season_hidden", "year": 2026},
+    "round": {
+      "id": "round_hidden_australia",
+      "number": 1,
+      "name": "Australian Grand Prix"
+    },
+    "component_keys": [],
+    "results": [
+      {
+        "driver": {
+          "id": "driver_hidden_lec",
+          "abbreviation": "LEC",
+          "given_name": "Charles",
+          "family_name": "Leclerc"
+        },
+        "team": {"id": "team_hidden_ferrari", "name": "Ferrari"},
+        "position": 1,
+        "position_text": "1",
+        "time": "1:20.267",
+        "is_classified": true,
+        "laps": 33,
+        "car_number": 16,
+        "components": {}
+      },
+      {
+        "driver": {
+          "id": "driver_hidden_alo",
+          "abbreviation": "ALO",
+          "given_name": "Fernando",
+          "family_name": "Alonso"
+        },
+        "team": {"id": "team_hidden_aston", "name": "Aston Martin"},
+        "position": 17,
+        "position_text": "17",
+        "time": "1:22.104",
+        "is_classified": true,
+        "laps": 18,
+        "car_number": 14,
+        "components": {}
+      },
+      {
+        "driver": {
+          "id": "driver_hidden_ver",
+          "abbreviation": "VER",
+          "given_name": "Max",
+          "family_name": "Verstappen"
+        },
+        "team": {"id": "team_hidden_redbull", "name": "Red Bull"},
+        "position_text": "NC",
+        "is_classified": false,
+        "laps": 2,
+        "car_number": 3,
+        "components": {}
+      }
+    ]
+  }
+}

@@ -20,6 +20,20 @@ data class SegmentTime(
     val time: String?,
 )
 
+data class PracticeResults(
+    val sessionType: String,
+    val sessionName: String,
+    val rows: List<PracticeRow>,
+)
+
+data class PracticeRow(
+    val positionText: String,
+    val code: String,
+    val team: String,
+    val time: String?,
+    val laps: Int?,
+)
+
 data class RaceResults(
     val sessionType: String,
     val sessionName: String,
@@ -39,6 +53,7 @@ data class RaceRow(
 
 sealed interface SessionResults {
     data class Qualifying(val results: QualifyingResults) : SessionResults
+    data class Practice(val results: PracticeResults) : SessionResults
     data class Race(val results: RaceResults) : SessionResults
 }
 

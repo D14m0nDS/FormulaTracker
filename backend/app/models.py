@@ -117,6 +117,31 @@ class ConstructorStanding(BaseModel):
     team: str
 
 
+class PracticeEntry(BaseModel):
+    position: int | None = None
+    position_text: str
+    classified: bool
+    time: str | None = None
+    laps: int | None = None
+    driver: Driver
+    team: str
+
+
+class PracticeResults(BaseModel):
+    season: int
+    round: int
+    event_name: str
+    session_type: str
+    session_name: str
+    start: datetime
+    timezone: str | None = None
+    results: list[PracticeEntry]
+
+    @field_serializer("start")
+    def serialize_start(self, value: datetime) -> str:
+        return format_utc(value)
+
+
 class SeasonStandings(BaseModel):
     season: int
     after_round: int | None = None

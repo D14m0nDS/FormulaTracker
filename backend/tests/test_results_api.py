@@ -14,6 +14,7 @@ QUALIFYING = json.loads((FIXTURES / "jolpica_qualifying_2026_r1.json").read_text
 SPRINT_QUALIFYING = json.loads(
     (FIXTURES / "jolpica_sprint_qualifying_2026_r2.json").read_text(encoding="utf-8")
 )
+PRACTICE = json.loads((FIXTURES / "jolpica_practice_2026_r1.json").read_text(encoding="utf-8"))
 RACE = json.loads((FIXTURES / "jolpica_race_2026_r1.json").read_text(encoding="utf-8"))
 SPRINT_RACE = json.loads((FIXTURES / "jolpica_sprint_race_2026_r2.json").read_text(encoding="utf-8"))
 
@@ -112,12 +113,35 @@ def test_race_and_sprint_race_routes():
     assert missing.json()["detail"] == "Session not on this round"
 
 
-def test_practice_results_are_not_this_endpoint():
+def test_practice_route_returns_best_lap_and_lap_count():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/f1/alpha/schedules/2026/":
+            return httpx.Response(200, json=SCHEDULE)
+        if request.url.path == "/f1/alpha/results/round_hidden_australia/FP1/":
+            return httpx.Response(200, json=PRACTICE)
+        return httpx.Response(404)
+
+    with _client(handler) as client:
+        response = client.get("/seasons/2026/rounds/1/sessions/FP1/results")
+        missing = client.get("/seasons/2026/rounds/2/sessions/FP2/results")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["session_name"] == "Practice 1"
+    assert body["results"][0]["time"] == "1:20.267"
+    assert body["results"][0]["laps"] == 33
+    assert "points" not in body["results"][0]
+    assert "segment_codes" not in body
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Session not on this round"
+
+
+def test_unknown_session_type_is_rejected():
     def handler(_request: httpx.Request) -> httpx.Response:
         raise AssertionError("provider should not be called")
 
     with _client(handler) as client:
-        response = client.get("/seasons/2026/rounds/1/sessions/FP1/results")
+        response = client.get("/seasons/2026/rounds/1/sessions/FP4/results")
 
     assert response.status_code == 422
 
