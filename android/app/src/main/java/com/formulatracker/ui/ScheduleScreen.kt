@@ -82,6 +82,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     val reminderScheduler = remember { SessionReminderScheduler(appContext) }
     val driverPhotos = remember { DriverPhotos(File(appContext.cacheDir, "driver-photos")) }
     var photoUrls by remember { mutableStateOf<Map<String, String?>>(emptyMap()) }
+    var teamColors by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var reminderPreferences by remember { mutableStateOf(reminderSettings.read()) }
     var currentSeasonSchedule by remember { mutableStateOf<SeasonSchedule?>(null) }
 
@@ -149,6 +150,15 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         } catch (_: Exception) {
             emptyMap()
         }
+        teamColors = try {
+            source.fetchTeams(photoYear).teams.associate { team ->
+                team.name.uppercase() to team.color
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 
     BackHandler(enabled = opened != Opened.None) {
@@ -209,6 +219,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
                         favorite = favorite,
                         photoUrls = photoUrls,
                         photos = driverPhotos,
+                        teamColors = teamColors,
                     )
                 }
             }
@@ -220,6 +231,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
                         favorite = favorite,
                         photoUrls = photoUrls,
                         photos = driverPhotos,
+                        teamColors = teamColors,
                     )
                 }
             }
@@ -231,6 +243,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
                         favorite = favorite,
                         photoUrls = photoUrls,
                         photos = driverPhotos,
+                        teamColors = teamColors,
                         onFavorite = { next ->
                             favoriteStore.write(next)
                             favorite = next

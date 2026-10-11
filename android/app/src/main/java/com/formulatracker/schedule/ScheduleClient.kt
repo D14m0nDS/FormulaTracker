@@ -7,6 +7,8 @@ import com.formulatracker.results.SessionResults
 import com.formulatracker.results.parseSessionResults
 import com.formulatracker.standings.SeasonStandings
 import com.formulatracker.standings.parseStandings
+import com.formulatracker.teams.SeasonTeams
+import com.formulatracker.teams.parseTeams
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
@@ -24,6 +26,8 @@ interface ScheduleSource {
     suspend fun fetchStandings(year: Int): SeasonStandings
 
     suspend fun fetchDrivers(year: Int): DriverDirectory
+
+    suspend fun fetchTeams(year: Int): SeasonTeams
 }
 
 class HttpScheduleSource(
@@ -44,6 +48,10 @@ class HttpScheduleSource(
 
     override suspend fun fetchDrivers(year: Int): DriverDirectory {
         return parseDrivers(get("/seasons/$year/drivers"))
+    }
+
+    override suspend fun fetchTeams(year: Int): SeasonTeams {
+        return parseTeams(get("/seasons/$year/teams"))
     }
 
     override suspend fun fetchStandings(year: Int): SeasonStandings {

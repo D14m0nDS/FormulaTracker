@@ -27,6 +27,8 @@ import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.schedule.ScheduleSource
+import com.formulatracker.teams.singleTeamColor
+import com.formulatracker.teams.teamColor
 import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
 import kotlinx.coroutines.CancellationException
@@ -49,6 +51,7 @@ fun FavoritesScreen(
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos,
+    teamColors: Map<String, String>,
     onFavorite: (FavoriteSelection) -> Unit,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
@@ -87,7 +90,7 @@ fun FavoritesScreen(
             }
         }
         is FavoritesLoad.Ready -> {
-            FavoriteLists(current.standings, favorite, photoUrls, photos, onFavorite)
+            FavoriteLists(current.standings, favorite, photoUrls, photos, teamColors, onFavorite)
         }
     }
 }
@@ -98,6 +101,7 @@ private fun FavoriteLists(
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos,
+    teamColors: Map<String, String>,
     onFavorite: (FavoriteSelection) -> Unit,
 ) {
     LazyColumn(
@@ -116,11 +120,17 @@ private fun FavoriteLists(
                 label = driverChoiceLabel(driver),
                 selected = favorite.matchesDriver(driver),
                 portrait = {
-                    DriverPortrait(
-                        code = driver.code.ifBlank { driver.familyName },
-                        photoUrl = photoUrls[driver.code.uppercase()],
-                        photos = photos,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        DriverPortrait(
+                            code = driver.code.ifBlank { driver.familyName },
+                            photoUrl = photoUrls[driver.code.uppercase()],
+                            photos = photos,
+                        )
+                        TeamColorMark(singleTeamColor(teamColors, driver.teams))
+                    }
                 },
             ) {
                 onFavorite(
@@ -138,7 +148,11 @@ private fun FavoriteLists(
             }
         }
         itemsIndexed(standings.constructors, key = { index, _ -> "team-$index" }) { _, constructor ->
-            ChoiceRow(constructor.team, selected = favorite.matchesTeam(constructor.team)) {
+            ChoiceRow(
+                constructor.team,
+                selected = favorite.matchesTeam(constructor.team),
+                portrait = { TeamColorMark(teamColor(teamColors, constructor.team)) },
+            ) {
                 onFavorite(favorite.copy(team = constructor.team))
             }
         }

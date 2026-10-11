@@ -30,6 +30,7 @@ import com.formulatracker.results.ResultsNotFound
 import com.formulatracker.results.SessionResults
 import com.formulatracker.schedule.RaceWeekend
 import com.formulatracker.schedule.ScheduleSource
+import com.formulatracker.teams.teamColor
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -53,6 +54,7 @@ fun WeekendResultsScreen(
     favorite: FavoriteSelection = FavoriteSelection(),
     photoUrls: Map<String, String?> = emptyMap(),
     photos: DriverPhotos? = null,
+    teamColors: Map<String, String> = emptyMap(),
 ) {
     val sessions = remember(weekend) { weekend.sessions.filter { it.type in RESULT_TYPES } }
     var sections by remember(weekend) {
@@ -91,6 +93,7 @@ fun WeekendResultsScreen(
                 favorite = favorite,
                 photoUrls = photoUrls,
                 photos = photos,
+                teamColors = teamColors,
             )
         }
     }
@@ -103,6 +106,7 @@ private fun ResultSection(
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos?,
+    teamColors: Map<String, String>,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium)
@@ -111,9 +115,9 @@ private fun ResultSection(
             ResultSectionState.Missing -> Text("No results yet")
             is ResultSectionState.Failed -> Text(state.message)
             is ResultSectionState.Ready -> when (val results = state.results) {
-                is SessionResults.Qualifying -> QualifyingTable(results.results, favorite, photoUrls, photos)
-                is SessionResults.Practice -> PracticeTable(results.results, favorite, photoUrls, photos)
-                is SessionResults.Race -> RaceTable(results.results, favorite, photoUrls, photos)
+                is SessionResults.Qualifying -> QualifyingTable(results.results, favorite, photoUrls, photos, teamColors)
+                is SessionResults.Practice -> PracticeTable(results.results, favorite, photoUrls, photos, teamColors)
+                is SessionResults.Race -> RaceTable(results.results, favorite, photoUrls, photos, teamColors)
             }
         }
     }
@@ -125,6 +129,7 @@ private fun QualifyingTable(
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos?,
+    teamColors: Map<String, String>,
 ) {
     results.rows.forEach { row ->
         val segments = row.segments.joinToString("  ") { segment ->
@@ -138,6 +143,7 @@ private fun QualifyingTable(
             highlighted = favorite.matches(row.code, row.team),
             photoUrl = photoUrls[row.code.uppercase()],
             photos = photos,
+            teamColor = teamColor(teamColors, row.team),
         )
     }
 }
@@ -148,6 +154,7 @@ private fun PracticeTable(
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos?,
+    teamColors: Map<String, String>,
 ) {
     results.rows.forEach { row ->
         val time = row.time?.let { "  $it" }.orEmpty()
@@ -158,6 +165,7 @@ private fun PracticeTable(
             highlighted = favorite.matches(row.code, row.team),
             photoUrl = photoUrls[row.code.uppercase()],
             photos = photos,
+            teamColor = teamColor(teamColors, row.team),
         )
     }
 }
@@ -168,6 +176,7 @@ private fun RaceTable(
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos?,
+    teamColors: Map<String, String>,
 ) {
     results.rows.forEach { row ->
         val detail = when {
@@ -183,6 +192,7 @@ private fun RaceTable(
             highlighted = favorite.matches(row.code, row.team),
             photoUrl = photoUrls[row.code.uppercase()],
             photos = photos,
+            teamColor = teamColor(teamColors, row.team),
         )
     }
 }
@@ -194,6 +204,7 @@ private fun ResultLine(
     highlighted: Boolean,
     photoUrl: String?,
     photos: DriverPhotos?,
+    teamColor: String?,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -202,6 +213,7 @@ private fun ResultLine(
         if (photos != null) {
             DriverPortrait(code = code, photoUrl = photoUrl, photos = photos)
         }
+        TeamColorMark(teamColor)
         Text(
             text = text,
             color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,

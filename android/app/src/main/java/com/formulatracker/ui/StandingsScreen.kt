@@ -27,6 +27,8 @@ import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.schedule.ScheduleSource
+import com.formulatracker.teams.singleTeamColor
+import com.formulatracker.teams.teamColor
 import com.formulatracker.standings.ConstructorStanding
 import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
@@ -60,6 +62,7 @@ fun StandingsScreen(
     favorite: FavoriteSelection = FavoriteSelection(),
     photoUrls: Map<String, String?> = emptyMap(),
     photos: DriverPhotos? = null,
+    teamColors: Map<String, String> = emptyMap(),
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<StandingsUiState>(StandingsUiState.Loading) }
@@ -111,6 +114,7 @@ fun StandingsScreen(
                 favorite = favorite,
                 photoUrls = photoUrls,
                 photos = photos,
+                teamColors = teamColors,
                 onTable = { table = it },
             )
         }
@@ -124,6 +128,7 @@ private fun StandingsList(
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos?,
+    teamColors: Map<String, String>,
     onTable: (StandingsTable) -> Unit,
 ) {
     LazyColumn(
@@ -165,6 +170,7 @@ private fun StandingsList(
                             photos = photos,
                         )
                     }
+                    TeamColorMark(singleTeamColor(teamColors, row.teams))
                     Text(
                         driverLine(row),
                         color = if (highlighted) {
@@ -180,14 +186,20 @@ private fun StandingsList(
                 item { Text("No constructors in this table") }
             }
             itemsIndexed(standings.constructors, key = { index, _ -> "team-$index" }) { _, row ->
-                Text(
-                    constructorLine(row),
-                    color = if (favorite.matchesTeam(row.team)) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TeamColorMark(teamColor(teamColors, row.team))
+                    Text(
+                        constructorLine(row),
+                        color = if (favorite.matchesTeam(row.team)) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                }
             }
         }
     }

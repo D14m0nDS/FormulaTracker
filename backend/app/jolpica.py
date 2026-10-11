@@ -127,6 +127,12 @@ class JolpicaClient:
             year,
         )
 
+    async def fetch_team_colors(self, year: int) -> dict:
+        return await self._get_json(
+            f"/f1/alpha/core/teams/?year={year}",
+            not_found=ProviderUnavailable("teams not found"),
+        )
+
     async def fetch_constructor_standings(self, year: int) -> dict:
         return await self._fetch_ergast_standings(
             f"/ergast/f1/{year}/constructorStandings.json",

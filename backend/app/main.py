@@ -19,11 +19,13 @@ from app.models import (
     SeasonDrivers,
     SeasonSchedule,
     SeasonStandings,
+    SeasonTeams,
     SessionResults,
 )
 from app.openf1 import OPENF1_BASE_URL, DriverPhotosService, OpenF1Unavailable
 from app.results import ResultsService, RoundNotFound, SessionNotScheduled
 from app.standings import StandingsService
+from app.teams import TeamColorsService
 
 
 def create_app(
@@ -31,6 +33,7 @@ def create_app(
     results: ResultsService | None = None,
     standings: StandingsService | None = None,
     drivers: DriverPhotosService | None = None,
+    teams: TeamColorsService | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -39,6 +42,7 @@ def create_app(
             app.state.schedules = ScheduleService(client)
             app.state.results = ResultsService(app.state.schedules, client)
             app.state.standings = StandingsService(client)
+            app.state.teams = TeamColorsService(client)
             openf1 = httpx.AsyncClient(base_url=OPENF1_BASE_URL, timeout=httpx.Timeout(10.0))
             app.state.drivers = DriverPhotosService(openf1)
             yield
@@ -49,6 +53,7 @@ def create_app(
             app.state.results = results
             app.state.standings = standings
             app.state.drivers = drivers
+            app.state.teams = teams
             yield
 
     app = FastAPI(title="FormulaTracker", lifespan=lifespan)
@@ -64,6 +69,9 @@ def create_app(
 
     def get_drivers(request: Request) -> DriverPhotosService:
         return request.app.state.drivers
+
+    def get_teams(request: Request) -> TeamColorsService:
+        return request.app.state.teams
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -92,6 +100,16 @@ def create_app(
             raise HTTPException(status_code=404, detail="Standings not found") from None
         except ProviderUnavailable:
             raise HTTPException(status_code=502, detail="Standings provider unavailable") from None
+
+    @app.get("/seasons/{year}/teams", response_model=SeasonTeams)
+    async def season_teams(
+        year: int = Path(ge=1950, le=2100),
+        colors: TeamColorsService = Depends(get_teams),
+    ) -> SeasonTeams:
+        try:
+            return await colors.get_teams(year)
+        except ProviderUnavailable:
+            raise HTTPException(status_code=502, detail="Team color provider unavailable") from None
 
     @app.get("/seasons/{year}/drivers", response_model=SeasonDrivers)
     async def season_drivers(

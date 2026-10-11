@@ -160,6 +160,16 @@ class SeasonDrivers(BaseModel):
     drivers: list[DriverPhoto]
 
 
+class TeamColor(BaseModel):
+    name: str
+    color: str
+
+
+class SeasonTeams(BaseModel):
+    season: int
+    teams: list[TeamColor]
+
+
 class RaceResults(BaseModel):
     season: int
     round: int
