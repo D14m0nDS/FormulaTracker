@@ -1,5 +1,7 @@
 package com.formulatracker.reminders
 
+import com.formulatracker.favorites.FavoriteSelection
+import com.formulatracker.favorites.withFavorite
 import com.formulatracker.schedule.SeasonSchedule
 import java.time.DayOfWeek
 import java.time.Duration
@@ -89,6 +91,7 @@ fun planReminders(
     preferences: ReminderPreferences,
     now: Instant,
     zone: ZoneId = ZoneId.systemDefault(),
+    favorite: FavoriteSelection = FavoriteSelection(),
 ): List<PlannedReminder> {
     val planned = mutableListOf<PlannedReminder>()
     for (weekend in schedule.events) {
@@ -104,7 +107,7 @@ fun planReminders(
                             requestCode = requestCode,
                             triggerAt = triggerAt,
                             title = title,
-                            text = "Race week is scheduled to begin",
+                            text = withFavorite("Race week is scheduled to begin", favorite),
                         ),
                     )
                 }
@@ -122,7 +125,7 @@ fun planReminders(
                     atStart = true,
                     triggerAt = session.start,
                     title = title,
-                    text = "$label is scheduled to start",
+                    text = withFavorite("$label is scheduled to start", favorite),
                     now = now,
                 )?.let(planned::add)
             }
@@ -133,7 +136,7 @@ fun planReminders(
                     atStart = false,
                     triggerAt = session.start.minus(REMINDER_LEAD),
                     title = title,
-                    text = "$label is scheduled to start in 60 minutes",
+                    text = withFavorite("$label is scheduled to start in 60 minutes", favorite),
                     now = now,
                 )?.let(planned::add)
             }

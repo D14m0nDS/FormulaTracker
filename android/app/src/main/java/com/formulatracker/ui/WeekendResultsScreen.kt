@@ -17,6 +17,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.formulatracker.favorites.FavoriteSelection
+import com.formulatracker.favorites.matchesDriver
+import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.results.PracticeResults
 import com.formulatracker.results.QualifyingResults
 import com.formulatracker.results.RaceResults
@@ -44,6 +47,7 @@ fun WeekendResultsScreen(
     year: Int,
     weekend: RaceWeekend,
     source: ScheduleSource,
+    favorite: FavoriteSelection = FavoriteSelection(),
 ) {
     val sessions = remember(weekend) { weekend.sessions.filter { it.type in RESULT_TYPES } }
     var sections by remember(weekend) {
@@ -79,13 +83,14 @@ fun WeekendResultsScreen(
             ResultSection(
                 title = session.name,
                 state = sections[session.type] ?: ResultSectionState.Loading,
+                favorite = favorite,
             )
         }
     }
 }
 
 @Composable
-private fun ResultSection(title: String, state: ResultSectionState) {
+private fun ResultSection(title: String, state: ResultSectionState, favorite: FavoriteSelection) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         when (state) {
@@ -93,37 +98,37 @@ private fun ResultSection(title: String, state: ResultSectionState) {
             ResultSectionState.Missing -> Text("No results yet")
             is ResultSectionState.Failed -> Text(state.message)
             is ResultSectionState.Ready -> when (val results = state.results) {
-                is SessionResults.Qualifying -> QualifyingTable(results.results)
-                is SessionResults.Practice -> PracticeTable(results.results)
-                is SessionResults.Race -> RaceTable(results.results)
+                is SessionResults.Qualifying -> QualifyingTable(results.results, favorite)
+                is SessionResults.Practice -> PracticeTable(results.results, favorite)
+                is SessionResults.Race -> RaceTable(results.results, favorite)
             }
         }
     }
 }
 
 @Composable
-private fun QualifyingTable(results: QualifyingResults) {
+private fun QualifyingTable(results: QualifyingResults, favorite: FavoriteSelection) {
     results.rows.forEach { row ->
         val segments = row.segments.joinToString("  ") { segment ->
             val time = segment.time ?: "—"
             "${segment.code} $time"
         }
         val status = if (row.status != null && row.status != "FINISHED") "  ${row.status}" else ""
-        Text("${row.positionText}  ${row.code}  ${row.team}  $segments$status")
+        ResultLine("${row.positionText}  ${row.code}  ${row.team}  $segments$status", favorite.matches(row.code, row.team))
     }
 }
 
 @Composable
-private fun PracticeTable(results: PracticeResults) {
+private fun PracticeTable(results: PracticeResults, favorite: FavoriteSelection) {
     results.rows.forEach { row ->
         val time = row.time?.let { "  $it" }.orEmpty()
         val laps = row.laps?.let { "  $it laps" }.orEmpty()
-        Text("${row.positionText}  ${row.code}  ${row.team}$time$laps")
+        ResultLine("${row.positionText}  ${row.code}  ${row.team}$time$laps", favorite.matches(row.code, row.team))
     }
 }
 
 @Composable
-private fun RaceTable(results: RaceResults) {
+private fun RaceTable(results: RaceResults, favorite: FavoriteSelection) {
     results.rows.forEach { row ->
         val detail = when {
             row.classified && row.time != null -> row.time
@@ -132,8 +137,20 @@ private fun RaceTable(results: RaceResults) {
         }
         val points = row.points?.let { "  ${formatPoints(it)} pts" }.orEmpty()
         val grid = row.grid?.let { "  grid $it" }.orEmpty()
-        Text("${row.positionText}  ${row.code}  ${row.team}  $detail$points$grid")
+        ResultLine("${row.positionText}  ${row.code}  ${row.team}  $detail$points$grid", favorite.matches(row.code, row.team))
     }
+}
+
+@Composable
+private fun ResultLine(text: String, highlighted: Boolean) {
+    Text(
+        text = text,
+        color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+    )
+}
+
+private fun FavoriteSelection.matches(code: String, team: String): Boolean {
+    return matchesDriver(code) || matchesTeam(team)
 }
 
 private suspend fun loadSection(

@@ -21,6 +21,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.formulatracker.favorites.FavoriteSelection
+import com.formulatracker.favorites.matchesDriver
+import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.schedule.ScheduleSource
 import com.formulatracker.standings.ConstructorStanding
 import com.formulatracker.standings.DriverStanding
@@ -52,6 +55,7 @@ private sealed interface StandingsUiState {
 fun StandingsScreen(
     year: Int,
     source: ScheduleSource,
+    favorite: FavoriteSelection = FavoriteSelection(),
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<StandingsUiState>(StandingsUiState.Loading) }
@@ -100,6 +104,7 @@ fun StandingsScreen(
             StandingsList(
                 standings = current.standings,
                 table = table,
+                favorite = favorite,
                 onTable = { table = it },
             )
         }
@@ -110,6 +115,7 @@ fun StandingsScreen(
 private fun StandingsList(
     standings: SeasonStandings,
     table: StandingsTable,
+    favorite: FavoriteSelection,
     onTable: (StandingsTable) -> Unit,
 ) {
     LazyColumn(
@@ -138,14 +144,28 @@ private fun StandingsList(
                 item { Text("No drivers in this table") }
             }
             itemsIndexed(standings.drivers, key = { index, _ -> "driver-$index" }) { _, row ->
-                Text(driverLine(row))
+                Text(
+                    driverLine(row),
+                    color = if (favorite.matchesDriver(row.code, row.familyName) || row.teams.any { favorite.matchesTeam(it) }) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
             }
         } else {
             if (standings.constructors.isEmpty()) {
                 item { Text("No constructors in this table") }
             }
             itemsIndexed(standings.constructors, key = { index, _ -> "team-$index" }) { _, row ->
-                Text(constructorLine(row))
+                Text(
+                    constructorLine(row),
+                    color = if (favorite.matchesTeam(row.team)) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
             }
         }
     }

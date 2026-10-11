@@ -1,5 +1,6 @@
 package com.formulatracker.reminders
 
+import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.schedule.RaceWeekend
 import com.formulatracker.schedule.ScheduledSession
 import com.formulatracker.schedule.SeasonSchedule
@@ -35,6 +36,24 @@ class ReminderPlanTest {
         assertEquals(Instant.parse("2026-03-07T04:00:00Z"), planned[0].triggerAt)
         assertEquals(Instant.parse("2026-03-07T05:00:00Z"), planned[1].triggerAt)
         assertTrue(planned.all { it.title == "Australian Grand Prix" })
+    }
+
+    @Test
+    fun aFavoriteIsNamedOnTheScheduledReminder() {
+        val schedule = schedule(session("Q", "Qualifying", "2026-03-07T05:00:00Z"))
+        val favorite = FavoriteSelection(driverCode = "NOR", driverName = "Norris", team = "McLaren")
+
+        val planned = planReminders(
+            schedule,
+            ReminderPreferences(beforeStart = false, raceWeek = false),
+            now,
+            favorite = favorite,
+        )
+
+        assertEquals(
+            "Qualifying is scheduled to start. Favorite: Norris, McLaren.",
+            planned.single().text,
+        )
     }
 
     @Test

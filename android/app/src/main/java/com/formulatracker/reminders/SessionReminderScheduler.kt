@@ -5,14 +5,20 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.schedule.SeasonSchedule
 import java.time.Instant
 
 class SessionReminderScheduler(private val context: Context) {
-    fun replace(schedule: SeasonSchedule, preferences: ReminderPreferences, now: Instant = Instant.now()) {
+    fun replace(
+        schedule: SeasonSchedule,
+        preferences: ReminderPreferences,
+        favorite: FavoriteSelection = FavoriteSelection(),
+        now: Instant = Instant.now(),
+    ) {
         // Android drops these alarms on reboot. They are set again the next time the calendar loads.
         clear()
-        for (reminder in planReminders(schedule, preferences, now)) {
+        for (reminder in planReminders(schedule, preferences, now, favorite = favorite)) {
             schedule(reminder)
         }
     }

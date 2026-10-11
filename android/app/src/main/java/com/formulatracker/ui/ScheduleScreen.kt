@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.formulatracker.favorites.FavoriteStore
 import com.formulatracker.reminders.ReminderScheduleStore
 import com.formulatracker.reminders.ReminderSettings
 import com.formulatracker.reminders.SessionReminderScheduler
@@ -74,6 +75,8 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     val appContext = LocalContext.current.applicationContext
     val reminderSettings = remember { ReminderSettings(appContext) }
     val reminderScheduleStore = remember { ReminderScheduleStore(appContext) }
+    val favoriteStore = remember { FavoriteStore(appContext) }
+    var favorite by remember { mutableStateOf(favoriteStore.read()) }
     val reminderScheduler = remember { SessionReminderScheduler(appContext) }
     var reminderPreferences by remember { mutableStateOf(reminderSettings.read()) }
     var currentSeasonSchedule by remember { mutableStateOf<SeasonSchedule?>(null) }
@@ -119,10 +122,10 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         currentSeasonSchedule = ready.schedule
     }
 
-    LaunchedEffect(currentSeasonSchedule, reminderPreferences) {
+    LaunchedEffect(currentSeasonSchedule, reminderPreferences, favorite) {
         val schedule = currentSeasonSchedule ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
-            reminderScheduler.replace(schedule, reminderPreferences)
+            reminderScheduler.replace(schedule, reminderPreferences, favorite)
         }
     }
 
@@ -150,7 +153,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
                 },
                 navigationIcon = {
                     when {
-                        weekend != null || opened == Opened.Standings || opened == Opened.Reminders -> {
+                        weekend != null || opened != Opened.None -> {
                             TextButton(onClick = { opened = Opened.None }) {
                                 Text("Calendar")
                             }
@@ -164,6 +167,9 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
                 },
                 actions = {
                     if (opened == Opened.None) {
+                        TextButton(onClick = { opened = Opened.Favorites }) {
+                            Text("Favorites")
+                        }
                         TextButton(onClick = { opened = Opened.Standings }) {
                             Text("Standings")
                         }
@@ -175,12 +181,25 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         when {
             weekend != null -> {
                 Column(modifier = Modifier.padding(innerPadding)) {
-                    WeekendResultsScreen(year = seasonYear, weekend = weekend, source = source)
+                    WeekendResultsScreen(year = seasonYear, weekend = weekend, source = source, favorite = favorite)
                 }
             }
             opened == Opened.Standings -> {
                 Column(modifier = Modifier.padding(innerPadding)) {
-                    StandingsScreen(year = seasonYear, source = source)
+                    StandingsScreen(year = seasonYear, source = source, favorite = favorite)
+                }
+            }
+            opened == Opened.Favorites -> {
+                Column(modifier = Modifier.padding(innerPadding)) {
+                    FavoritesScreen(
+                        year = currentYear,
+                        source = source,
+                        favorite = favorite,
+                        onFavorite = { next ->
+                            favoriteStore.write(next)
+                            favorite = next
+                        },
+                    )
                 }
             }
             opened == Opened.Reminders -> {
@@ -211,6 +230,7 @@ private sealed interface Opened {
     data class Weekend(val weekend: RaceWeekend) : Opened
     data object Standings : Opened
     data object Reminders : Opened
+    data object Favorites : Opened
 }
 
 @Composable
