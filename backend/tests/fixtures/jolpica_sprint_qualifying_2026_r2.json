@@ -1,0 +1,38 @@
+{
+  "metadata": {"timestamp": "2026-10-11T17:45:13.408688Z"},
+  "data": {
+    "code": "SQ",
+    "title": "Sprint Qualifying",
+    "timestamp": "2026-03-13T07:30:00Z",
+    "timezone": "Asia/Shanghai",
+    "season": {"id": "season_hidden", "year": 2026},
+    "round": {
+      "id": "round_hidden_china",
+      "number": 2,
+      "name": "Chinese Grand Prix"
+    },
+    "component_keys": ["SQ1", "SQ2", "SQ3"],
+    "results": [
+      {
+        "driver": {
+          "id": "driver_hidden_rus",
+          "abbreviation": "RUS",
+          "given_name": "George",
+          "family_name": "Russell"
+        },
+        "team": {"id": "team_hidden_mercedes", "name": "Mercedes"},
+        "position": 1,
+        "position_text": "1",
+        "time": "1:31.520",
+        "is_classified": true,
+        "status": "FINISHED",
+        "car_number": 63,
+        "components": {
+          "SQ1": {"position": 1, "time": "1:33.030"},
+          "SQ2": {"position": 1, "time": "1:32.241"},
+          "SQ3": {"position": 1, "time": "1:31.520"}
+        }
+      }
+    ]
+  }
+}

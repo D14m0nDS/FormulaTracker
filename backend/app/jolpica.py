@@ -1,11 +1,15 @@
 import asyncio
+import re
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 import httpx
 
 from app.models import SeasonSchedule
-from app.normalize import ProviderPayloadError, normalize_schedule
+from app.normalize import ProviderPayloadError, ProviderRound, read_schedule
+
+_PROVIDER_ID = re.compile(r"^[A-Za-z0-9_]+$")
 
 JOLPICA_BASE_URL = "https://api.jolpi.ca"
 REQUEST_TIMEOUT = httpx.Timeout(10.0)
@@ -21,8 +25,18 @@ class SeasonNotFound(Exception):
     pass
 
 
+class ResultsNotFound(Exception):
+    pass
+
+
 class ProviderUnavailable(Exception):
     pass
+
+
+@dataclass
+class CachedSeason:
+    schedule: SeasonSchedule
+    rounds: dict[int, ProviderRound]
 
 
 class JolpicaClient:
@@ -45,6 +59,22 @@ class JolpicaClient:
         response = await self._get(f"/f1/alpha/schedules/{year}/")
         if response.status_code == 404:
             raise SeasonNotFound(year)
+        if response.status_code != 200:
+            raise ProviderUnavailable(response.status_code)
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise ProviderUnavailable("invalid json") from exc
+        if not isinstance(payload, dict):
+            raise ProviderUnavailable("invalid json")
+        return payload
+
+    async def fetch_results(self, provider_round_id: str, session_type: str) -> dict:
+        if _PROVIDER_ID.fullmatch(provider_round_id) is None:
+            raise ProviderUnavailable("unexpected round id")
+        response = await self._get(f"/f1/alpha/results/{provider_round_id}/{session_type}/")
+        if response.status_code == 404:
+            raise ResultsNotFound(provider_round_id, session_type)
         if response.status_code != 200:
             raise ProviderUnavailable(response.status_code)
         try:
@@ -78,13 +108,16 @@ class ScheduleService:
     def __init__(self, client: JolpicaClient, *, ttl_seconds: float = CACHE_TTL_SECONDS) -> None:
         self._client = client
         self._ttl_seconds = ttl_seconds
-        self._cache: dict[int, tuple[float, SeasonSchedule]] = {}
+        self._cache: dict[int, tuple[float, CachedSeason]] = {}
         self._lock = asyncio.Lock()
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
     async def get_schedule(self, year: int) -> SeasonSchedule:
+        return (await self.load(year)).schedule
+
+    async def load(self, year: int) -> CachedSeason:
         cached = self._read_cache(year)
         if cached is not None:
             return cached
@@ -95,18 +128,19 @@ class ScheduleService:
                 return cached
             payload = await self._client.fetch_schedule(year)
             try:
-                schedule = normalize_schedule(payload)
+                schedule, rounds = read_schedule(payload)
             except ProviderPayloadError as exc:
                 raise ProviderUnavailable("unexpected payload") from exc
-            self._cache[year] = (time.monotonic() + self._ttl_seconds, schedule)
-            return schedule
+            cached = CachedSeason(schedule, rounds)
+            self._cache[year] = (time.monotonic() + self._ttl_seconds, cached)
+            return cached
 
-    def _read_cache(self, year: int) -> SeasonSchedule | None:
+    def _read_cache(self, year: int) -> CachedSeason | None:
         item = self._cache.get(year)
         if item is None:
             return None
-        expires_at, schedule = item
+        expires_at, cached = item
         if time.monotonic() >= expires_at:
             del self._cache[year]
             return None
-        return schedule
+        return cached

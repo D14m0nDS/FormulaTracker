@@ -1,0 +1,74 @@
+{
+  "metadata": {"timestamp": "2026-10-11T17:35:04.131005Z"},
+  "data": {
+    "code": "Q",
+    "title": "Qualifying",
+    "timestamp": "2026-03-07T05:00:00Z",
+    "timezone": "Australia/Melbourne",
+    "season": {"id": "season_hidden", "year": 2026},
+    "round": {
+      "id": "round_hidden_australia",
+      "number": 1,
+      "name": "Australian Grand Prix",
+      "wikipedia": "https://en.wikipedia.org/wiki/2026_Australian_Grand_Prix"
+    },
+    "component_keys": ["Q1", "Q2", "Q3"],
+    "results": [
+      {
+        "driver": {
+          "id": "driver_hidden_rus",
+          "abbreviation": "RUS",
+          "given_name": "George",
+          "family_name": "Russell",
+          "wikipedia": "http://en.wikipedia.org/wiki/George_Russell_(racing_driver)"
+        },
+        "team": {"id": "team_hidden_mercedes", "name": "Mercedes"},
+        "position": 1,
+        "position_text": "1",
+        "time": "1:18.518",
+        "is_classified": true,
+        "status": "FINISHED",
+        "car_number": 63,
+        "components": {
+          "Q3": {"key": "Q3", "position": 1, "time": "1:18.518"},
+          "Q1": {"key": "Q1", "position": 1, "time": "1:19.507"},
+          "Q2": {"key": "Q2", "position": 1, "time": "1:18.934"}
+        }
+      },
+      {
+        "driver": {
+          "id": "driver_hidden_alo",
+          "abbreviation": "ALO",
+          "given_name": "Fernando",
+          "family_name": "Alonso"
+        },
+        "team": {"id": "team_hidden_aston", "name": "Aston Martin"},
+        "position": 17,
+        "position_text": "17",
+        "time": "1:21.969",
+        "is_classified": true,
+        "status": "FINISHED",
+        "car_number": 14,
+        "components": {
+          "Q1": {"key": "Q1", "position": 17, "time": "1:21.969"}
+        }
+      },
+      {
+        "driver": {
+          "id": "driver_hidden_ver",
+          "abbreviation": "VER",
+          "given_name": "Max",
+          "family_name": "Verstappen"
+        },
+        "team": {"id": "team_hidden_redbull", "name": "Red Bull"},
+        "position_text": "NC",
+        "is_classified": false,
+        "status": "ACCIDENT",
+        "car_number": 3,
+        "components": {
+          "Q1": {"key": "Q1"}
+        }
+      }
+    ]
+  }
+}

@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from app.normalize import ProviderPayloadError, normalize_schedule
+from app.normalize import (
+    ProviderPayloadError,
+    normalize_schedule,
+    normalize_session_results,
+    read_schedule,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "jolpica_schedule_2026.json"
 
@@ -149,6 +154,54 @@ def test_unknown_session_code_is_kept():
 def test_malformed_payload_is_rejected():
     with pytest.raises(ProviderPayloadError):
         normalize_schedule({})
+
+
+def test_provider_round_index_keeps_ids_for_lookup_only():
+    _schedule, rounds = read_schedule(load_fixture())
+
+    assert rounds[1].provider_id == "round_hidden_australia"
+    assert "Q" in rounds[1].sessions
+    assert "SQ" not in rounds[1].sessions
+    assert "SQ" in rounds[2].sessions
+
+
+def test_qualifying_results_keep_segment_order_and_omit_missing_segments():
+    results = normalize_session_results(
+        json.loads((FIXTURE.parent / "jolpica_qualifying_2026_r1.json").read_text(encoding="utf-8")),
+        season=2026,
+        round_number=1,
+        session_type="Q",
+    )
+
+    russell, alonso, verstappen = results.results
+    assert results.session_type == "Q"
+    assert results.segment_codes == ["Q1", "Q2", "Q3"]
+    assert [segment.code for segment in russell.segments] == ["Q1", "Q2", "Q3"]
+    assert [segment.code for segment in alonso.segments] == ["Q1"]
+    assert verstappen.classified is False
+    assert verstappen.position is None
+    assert verstappen.position_text == "NC"
+    assert verstappen.status == "ACCIDENT"
+    assert verstappen.segments[0].time is None
+    dumped = results.model_dump_json()
+    assert "driver_hidden" not in dumped
+    assert "team_hidden" not in dumped
+    assert "wikipedia" not in dumped
+
+
+def test_sprint_qualifying_uses_the_same_segment_shape():
+    results = normalize_session_results(
+        json.loads(
+            (FIXTURE.parent / "jolpica_sprint_qualifying_2026_r2.json").read_text(encoding="utf-8")
+        ),
+        season=2026,
+        round_number=2,
+        session_type="SQ",
+    )
+
+    assert results.event_name == "Chinese Grand Prix"
+    assert results.results[0].segments[2].code == "SQ3"
+    assert results.results[0].segments[2].time == "1:31.520"
 
 
 def _payload(events: list[dict]) -> dict:
