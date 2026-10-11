@@ -38,6 +38,7 @@ import com.formulatracker.schedule.ScheduleSource
 import com.formulatracker.schedule.seasonYears
 import com.formulatracker.schedule.ScheduledSession
 import com.formulatracker.schedule.SeasonSchedule
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -63,10 +64,15 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     var state by remember { mutableStateOf<ScheduleUiState>(ScheduleUiState.Loading) }
     var opened by remember { mutableStateOf<Opened>(Opened.None) }
 
-    LaunchedEffect(seasonYear, attempt) {
+    LaunchedEffect(seasonYear, attempt, opened) {
+        if (opened != Opened.None) {
+            return@LaunchedEffect
+        }
         state = ScheduleUiState.Loading
         state = try {
             ScheduleUiState.Ready(withContext(Dispatchers.IO) { source.fetch(seasonYear) })
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
             ScheduleUiState.Failed(error.message ?: "Couldn't load the schedule")
         }

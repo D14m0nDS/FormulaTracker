@@ -173,17 +173,19 @@ class JolpicaClient:
         return payload
 
     async def _get(self, path: str) -> httpx.Response:
-        for attempt in range(2):
+        # Stepping through seasons fires a standings request per year. Jolpica's
+        # unauthenticated limit is 4 requests/second, so a short 429 needs more
+        # than one retry before it is reported as a failure.
+        for attempt in range(3):
             try:
                 response = await self._client.get(path)
             except httpx.HTTPError as exc:
-                if attempt == 0:
+                if attempt < 2:
                     await self._sleep(RETRY_DELAY_SECONDS)
                     continue
                 raise ProviderUnavailable("request failed") from exc
 
-            # One immediate retry absorbs a transient throttle or server error.
-            if attempt == 0 and (response.status_code == 429 or response.status_code >= 500):
+            if attempt < 2 and (response.status_code == 429 or response.status_code >= 500):
                 await self._sleep(RETRY_DELAY_SECONDS)
                 continue
             return response

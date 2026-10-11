@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,6 +25,7 @@ import com.formulatracker.schedule.ScheduleSource
 import com.formulatracker.standings.ConstructorStanding
 import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -52,6 +53,8 @@ fun StandingsScreen(
         state = StandingsUiState.Loading
         state = try {
             StandingsUiState.Ready(withContext(Dispatchers.IO) { source.fetchStandings(year) })
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
             StandingsUiState.Failed(error.message ?: "Couldn't load standings")
         }
@@ -113,14 +116,14 @@ private fun StandingsList(
             if (standings.drivers.isEmpty()) {
                 item { Text("No drivers in this table") }
             }
-            items(standings.drivers, key = { "${it.positionText}-${it.code}" }) { row ->
+            itemsIndexed(standings.drivers, key = { index, _ -> "driver-$index" }) { _, row ->
                 Text(driverLine(row))
             }
         } else {
             if (standings.constructors.isEmpty()) {
                 item { Text("No constructors in this table") }
             }
-            items(standings.constructors, key = { "${it.positionText}-${it.team}" }) { row ->
+            itemsIndexed(standings.constructors, key = { index, _ -> "team-$index" }) { _, row ->
                 Text(constructorLine(row))
             }
         }
@@ -143,7 +146,8 @@ private fun TableButton(label: String, selected: Boolean, onClick: () -> Unit) {
 internal fun driverLine(row: DriverStanding): String {
     val teams = row.teams.joinToString(", ")
     val teamText = if (teams.isEmpty()) "" else "  $teams"
-    return "${row.positionText}  ${row.code}  ${formatPoints(row.points)} pts  ${row.wins} wins$teamText"
+    val name = row.code.ifEmpty { row.familyName }
+    return "${row.positionText}  $name  ${formatPoints(row.points)} pts  ${row.wins} wins$teamText"
 }
 
 internal fun constructorLine(row: ConstructorStanding): String {

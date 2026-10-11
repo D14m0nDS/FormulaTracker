@@ -31,6 +31,22 @@ class StandingsJsonTest {
     }
 
     @Test
+    fun aDriverWithoutACodeUsesTheFamilyName() {
+        val line = driverLine(
+            DriverStanding(
+                positionText = "-",
+                code = "",
+                familyName = "Hakkinen",
+                points = 0.0,
+                wins = 0,
+                teams = listOf("McLaren"),
+            ),
+        )
+
+        assertEquals("-  Hakkinen  0 pts  0 wins  McLaren", line)
+    }
+
+    @Test
     fun missingAfterRoundStaysEmpty() {
         val standings = parseStandings(STANDINGS.replace("\"after_round\": 17,", "\"after_round\": null,"))
 

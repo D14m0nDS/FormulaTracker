@@ -10,6 +10,7 @@ data class SeasonStandings(
 data class DriverStanding(
     val positionText: String,
     val code: String,
+    val familyName: String,
     val points: Double,
     val wins: Int,
     val teams: List<String>,

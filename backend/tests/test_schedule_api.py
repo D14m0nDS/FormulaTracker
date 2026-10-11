@@ -57,7 +57,23 @@ def test_provider_failure_is_502_and_is_not_cached():
 
     assert first.status_code == 502
     assert second.status_code == 502
-    assert calls["count"] == 4
+    assert calls["count"] == 6
+
+
+def test_repeated_throttle_is_retried_until_it_clears():
+    calls = {"count": 0}
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        if calls["count"] < 3:
+            return httpx.Response(429)
+        return httpx.Response(200, json=FIXTURE)
+
+    with _client(handler) as client:
+        response = client.get("/seasons/2026/schedule")
+
+    assert response.status_code == 200
+    assert calls["count"] == 3
 
 
 def test_transient_server_error_is_retried_once():

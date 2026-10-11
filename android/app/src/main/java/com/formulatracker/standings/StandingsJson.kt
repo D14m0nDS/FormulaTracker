@@ -34,6 +34,7 @@ private fun parseDriver(row: JSONObject): DriverStanding {
     return DriverStanding(
         positionText = row.optString("position_text"),
         code = driver?.optString("code").orEmpty(),
+        familyName = driver?.optString("family_name").orEmpty(),
         points = row.getDouble("points"),
         wins = row.getInt("wins"),
         teams = buildList {
