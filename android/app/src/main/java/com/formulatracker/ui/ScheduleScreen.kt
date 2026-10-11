@@ -3,13 +3,18 @@ package com.formulatracker.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -23,11 +28,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.formulatracker.schedule.FIRST_SEASON_YEAR
 import com.formulatracker.schedule.HttpScheduleSource
 import com.formulatracker.schedule.RaceWeekend
 import com.formulatracker.schedule.ScheduleSource
+import com.formulatracker.schedule.seasonYears
 import com.formulatracker.schedule.ScheduledSession
 import com.formulatracker.schedule.SeasonSchedule
 import kotlinx.coroutines.Dispatchers
@@ -48,15 +56,17 @@ sealed interface ScheduleUiState {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
-    val year = remember { Year.now().value }
+    val currentYear = remember { Year.now().value }
+    var seasonYear by remember { mutableIntStateOf(currentYear) }
+    var yearMenuOpen by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<ScheduleUiState>(ScheduleUiState.Loading) }
     var opened by remember { mutableStateOf<Opened>(Opened.None) }
 
-    LaunchedEffect(year, attempt) {
+    LaunchedEffect(seasonYear, attempt) {
         state = ScheduleUiState.Loading
         state = try {
-            ScheduleUiState.Ready(withContext(Dispatchers.IO) { source.fetch(year) })
+            ScheduleUiState.Ready(withContext(Dispatchers.IO) { source.fetch(seasonYear) })
         } catch (error: Exception) {
             ScheduleUiState.Failed(error.message ?: "Couldn't load the schedule")
         }
@@ -66,32 +76,44 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         opened = Opened.None
     }
 
-    val season = (state as? ScheduleUiState.Ready)?.schedule?.season ?: year
     val weekend = (opened as? Opened.Weekend)?.weekend
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        when {
-                            weekend != null -> weekend.name
-                            opened == Opened.Standings -> "Standings"
-                            else -> "$season season"
-                        },
-                    )
+                    if (weekend != null) {
+                        Text(weekend.name)
+                    } else {
+                        SeasonYearBar(
+                            year = seasonYear,
+                            currentYear = currentYear,
+                            menuOpen = yearMenuOpen,
+                            onMenuOpen = { yearMenuOpen = true },
+                            onMenuDismiss = { yearMenuOpen = false },
+                            onYear = { seasonYear = it },
+                        )
+                    }
                 },
                 navigationIcon = {
-                    if (opened != Opened.None) {
+                    if (weekend != null) {
                         TextButton(onClick = { opened = Opened.None }) {
                             Text("Calendar")
                         }
                     }
                 },
                 actions = {
-                    if (opened == Opened.None) {
-                        TextButton(onClick = { opened = Opened.Standings }) {
-                            Text("Standings")
+                    when (opened) {
+                        Opened.None -> {
+                            TextButton(onClick = { opened = Opened.Standings }) {
+                                Text("Standings")
+                            }
                         }
+                        Opened.Standings -> {
+                            TextButton(onClick = { opened = Opened.None }) {
+                                Text("Calendar")
+                            }
+                        }
+                        is Opened.Weekend -> Unit
                     }
                 },
             )
@@ -100,12 +122,12 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         when {
             weekend != null -> {
                 Column(modifier = Modifier.padding(innerPadding)) {
-                    WeekendResultsScreen(year = season, weekend = weekend, source = source)
+                    WeekendResultsScreen(year = seasonYear, weekend = weekend, source = source)
                 }
             }
             opened == Opened.Standings -> {
                 Column(modifier = Modifier.padding(innerPadding)) {
-                    StandingsScreen(year = season, source = source)
+                    StandingsScreen(year = seasonYear, source = source)
                 }
             }
             else -> {
@@ -124,6 +146,61 @@ private sealed interface Opened {
     data object None : Opened
     data class Weekend(val weekend: RaceWeekend) : Opened
     data object Standings : Opened
+}
+
+@Composable
+private fun SeasonYearBar(
+    year: Int,
+    currentYear: Int,
+    menuOpen: Boolean,
+    onMenuOpen: () -> Unit,
+    onMenuDismiss: () -> Unit,
+    onYear: (Int) -> Unit,
+) {
+    val years = remember(currentYear) { seasonYears(currentYear) }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        TextButton(
+            onClick = { onYear(year - 1) },
+            enabled = year > FIRST_SEASON_YEAR,
+        ) {
+            Text("‹", style = MaterialTheme.typography.headlineSmall)
+        }
+        Box {
+            TextButton(onClick = onMenuOpen) {
+                Text(year.toString(), style = MaterialTheme.typography.titleLarge)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = onMenuDismiss) {
+                years.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                option.toString(),
+                                color = if (option == year) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                            )
+                        },
+                        onClick = {
+                            onYear(option)
+                            onMenuDismiss()
+                        },
+                    )
+                }
+            }
+        }
+        TextButton(
+            onClick = { onYear(year + 1) },
+            enabled = year < currentYear,
+        ) {
+            Text("›", style = MaterialTheme.typography.headlineSmall)
+        }
+    }
 }
 
 @Composable
