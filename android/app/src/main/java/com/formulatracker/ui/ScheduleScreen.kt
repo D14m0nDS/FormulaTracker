@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import com.formulatracker.reminders.ReminderScheduleStore
 import com.formulatracker.reminders.ReminderSettings
 import com.formulatracker.reminders.SessionReminderScheduler
+import com.formulatracker.reminders.scheduleChanges
 import com.formulatracker.reminders.scheduleRemindersFor
+import com.formulatracker.reminders.showScheduledNotification
 import com.formulatracker.schedule.FIRST_SEASON_YEAR
 import com.formulatracker.schedule.HttpScheduleSource
 import com.formulatracker.schedule.RaceWeekend
@@ -98,10 +100,22 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         if (!scheduleRemindersFor(ready.schedule.season, currentYear)) {
             return@LaunchedEffect
         }
-        withContext(Dispatchers.IO) {
+        val changes = withContext(Dispatchers.IO) {
+            val previous = reminderScheduleStore.read()
+            val found = scheduleChanges(
+                previous = previous,
+                current = ready.schedule,
+                now = Instant.now(),
+                zone = ZoneId.systemDefault(),
+                locale = Locale.getDefault(),
+            )
             reminderScheduleStore.write(ready.schedule)
+            found
         }
         ensureActive()
+        changes.forEach { change ->
+            showScheduledNotification(appContext, change.title, change.text, change.notificationId)
+        }
         currentSeasonSchedule = ready.schedule
     }
 
