@@ -39,6 +39,36 @@ class ReminderPlanTest {
     }
 
     @Test
+    fun aCustomLeadAndMessageReplaceTheDefault() {
+        val schedule = schedule(session("Q", "Qualifying", "2026-03-06T00:30:00Z"))
+        val preferences = ReminderPreferences(
+            atStart = false,
+            raceWeek = false,
+            leadMinutes = 15,
+            beforeTemplate = "Soon: {session}, {minutes} min",
+        )
+
+        val planned = planReminders(schedule, preferences, now)
+
+        assertEquals("Soon: Qualifying, 15 min", planned.single().text)
+        assertEquals(Instant.parse("2026-03-06T00:15:00Z"), planned.single().triggerAt)
+    }
+
+    @Test
+    fun aBlankMessageFallsBackToTheDefault() {
+        val schedule = schedule(session("R", "Race", "2026-03-08T04:00:00Z"))
+        val preferences = ReminderPreferences(
+            beforeStart = false,
+            raceWeek = false,
+            atStartTemplate = "   ",
+        )
+
+        val planned = planReminders(schedule, preferences, now)
+
+        assertEquals("Race is scheduled to start", planned.single().text)
+    }
+
+    @Test
     fun aFavoriteIsNamedOnTheScheduledReminder() {
         val schedule = schedule(session("Q", "Qualifying", "2026-03-07T05:00:00Z"))
         val favorite = FavoriteSelection(driverCode = "NOR", driverName = "Norris", team = "McLaren")

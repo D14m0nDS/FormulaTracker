@@ -22,11 +22,22 @@ val REMINDER_SESSION_TYPES = listOf(
     ReminderSessionType("R", "Race"),
 )
 
+const val DEFAULT_LEAD_MINUTES = 60
+const val MIN_LEAD_MINUTES = 1
+const val MAX_LEAD_MINUTES = 24 * 60
+const val DEFAULT_BEFORE_TEMPLATE = "{session} is scheduled to start in {minutes} minutes"
+const val DEFAULT_AT_START_TEMPLATE = "{session} is scheduled to start"
+const val DEFAULT_RACE_WEEK_TEMPLATE = "Race week is scheduled to begin"
+
 data class ReminderPreferences(
     val enabledTypes: Set<String> = REMINDER_SESSION_TYPES.map { it.type }.toSet(),
     val beforeStart: Boolean = true,
     val atStart: Boolean = true,
     val raceWeek: Boolean = true,
+    val leadMinutes: Int = DEFAULT_LEAD_MINUTES,
+    val beforeTemplate: String = DEFAULT_BEFORE_TEMPLATE,
+    val atStartTemplate: String = DEFAULT_AT_START_TEMPLATE,
+    val raceWeekTemplate: String = DEFAULT_RACE_WEEK_TEMPLATE,
 )
 
 data class PlannedReminder(
@@ -39,7 +50,14 @@ data class PlannedReminder(
 internal const val MAX_REMINDER_ROUND = 30
 internal const val TEST_REMINDER_REQUEST_CODE = 10_001
 internal const val RACE_WEEK_REQUEST_CODE_BASE = 5_000
-internal val REMINDER_LEAD = Duration.ofMinutes(60)
+internal fun usableLeadMinutes(minutes: Int): Int {
+    return minutes.coerceIn(MIN_LEAD_MINUTES, MAX_LEAD_MINUTES)
+}
+
+internal fun reminderText(template: String, fallback: String, session: String, minutes: Int): String {
+    val used = template.ifBlank { fallback }
+    return used.replace("{session}", session).replace("{minutes}", minutes.toString())
+}
 
 private const val SLOTS_PER_ROUND = 14
 
@@ -107,7 +125,10 @@ fun planReminders(
                             requestCode = requestCode,
                             triggerAt = triggerAt,
                             title = title,
-                            text = withFavorite("Race week is scheduled to begin", favorite),
+                            text = withFavorite(
+                                reminderText(preferences.raceWeekTemplate, DEFAULT_RACE_WEEK_TEMPLATE, "", usableLeadMinutes(preferences.leadMinutes)),
+                                favorite,
+                            ),
                         ),
                     )
                 }
@@ -118,6 +139,7 @@ fun planReminders(
                 continue
             }
             val label = session.name.ifBlank { labelFor(session.type) }
+            val minutes = usableLeadMinutes(preferences.leadMinutes)
             if (preferences.atStart) {
                 reminder(
                     round = weekend.round,
@@ -125,7 +147,10 @@ fun planReminders(
                     atStart = true,
                     triggerAt = session.start,
                     title = title,
-                    text = withFavorite("$label is scheduled to start", favorite),
+                    text = withFavorite(
+                        reminderText(preferences.atStartTemplate, DEFAULT_AT_START_TEMPLATE, label, minutes),
+                        favorite,
+                    ),
                     now = now,
                 )?.let(planned::add)
             }
@@ -134,9 +159,12 @@ fun planReminders(
                     round = weekend.round,
                     type = session.type,
                     atStart = false,
-                    triggerAt = session.start.minus(REMINDER_LEAD),
+                    triggerAt = session.start.minus(Duration.ofMinutes(minutes.toLong())),
                     title = title,
-                    text = withFavorite("$label is scheduled to start in 60 minutes", favorite),
+                    text = withFavorite(
+                        reminderText(preferences.beforeTemplate, DEFAULT_BEFORE_TEMPLATE, label, minutes),
+                        favorite,
+                    ),
                     now = now,
                 )?.let(planned::add)
             }

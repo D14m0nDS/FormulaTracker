@@ -15,6 +15,10 @@ class ReminderSettings(context: Context) {
             beforeStart = preferences.getBoolean(KEY_BEFORE, true),
             atStart = preferences.getBoolean(KEY_AT, true),
             raceWeek = preferences.getBoolean(KEY_RACE_WEEK, true),
+            leadMinutes = preferences.getInt(KEY_LEAD, DEFAULT_LEAD_MINUTES),
+            beforeTemplate = preferences.getString(KEY_BEFORE_TEXT, DEFAULT_BEFORE_TEMPLATE).orEmpty(),
+            atStartTemplate = preferences.getString(KEY_AT_TEXT, DEFAULT_AT_START_TEMPLATE).orEmpty(),
+            raceWeekTemplate = preferences.getString(KEY_RACE_WEEK_TEXT, DEFAULT_RACE_WEEK_TEMPLATE).orEmpty(),
         )
     }
 
@@ -26,6 +30,10 @@ class ReminderSettings(context: Context) {
             putBoolean(KEY_BEFORE, value.beforeStart)
             putBoolean(KEY_AT, value.atStart)
             putBoolean(KEY_RACE_WEEK, value.raceWeek)
+            putInt(KEY_LEAD, value.leadMinutes)
+            putString(KEY_BEFORE_TEXT, value.beforeTemplate)
+            putString(KEY_AT_TEXT, value.atStartTemplate)
+            putString(KEY_RACE_WEEK_TEXT, value.raceWeekTemplate)
         }.apply()
     }
 
@@ -36,5 +44,9 @@ class ReminderSettings(context: Context) {
         const val KEY_BEFORE = "before_start"
         const val KEY_AT = "at_start"
         const val KEY_RACE_WEEK = "race_week"
+        const val KEY_LEAD = "lead_minutes"
+        const val KEY_BEFORE_TEXT = "before_text"
+        const val KEY_AT_TEXT = "at_start_text"
+        const val KEY_RACE_WEEK_TEXT = "race_week_text"
     }
 }
