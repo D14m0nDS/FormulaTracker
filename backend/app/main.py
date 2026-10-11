@@ -3,6 +3,8 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Path, Request
 
+import httpx
+
 from app.jolpica import (
     JolpicaClient,
     ProviderUnavailable,
@@ -11,7 +13,15 @@ from app.jolpica import (
     SeasonNotFound,
     StandingsNotFound,
 )
-from app.models import PracticeResults, RaceResults, SeasonSchedule, SeasonStandings, SessionResults
+from app.models import (
+    PracticeResults,
+    RaceResults,
+    SeasonDrivers,
+    SeasonSchedule,
+    SeasonStandings,
+    SessionResults,
+)
+from app.openf1 import OPENF1_BASE_URL, DriverPhotosService, OpenF1Unavailable
 from app.results import ResultsService, RoundNotFound, SessionNotScheduled
 from app.standings import StandingsService
 
@@ -20,6 +30,7 @@ def create_app(
     service: ScheduleService | None = None,
     results: ResultsService | None = None,
     standings: StandingsService | None = None,
+    drivers: DriverPhotosService | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -28,12 +39,16 @@ def create_app(
             app.state.schedules = ScheduleService(client)
             app.state.results = ResultsService(app.state.schedules, client)
             app.state.standings = StandingsService(client)
+            openf1 = httpx.AsyncClient(base_url=OPENF1_BASE_URL, timeout=httpx.Timeout(10.0))
+            app.state.drivers = DriverPhotosService(openf1)
             yield
+            await openf1.aclose()
             await app.state.schedules.aclose()
         else:
             app.state.schedules = service
             app.state.results = results
             app.state.standings = standings
+            app.state.drivers = drivers
             yield
 
     app = FastAPI(title="FormulaTracker", lifespan=lifespan)
@@ -46,6 +61,9 @@ def create_app(
 
     def get_standings(request: Request) -> StandingsService:
         return request.app.state.standings
+
+    def get_drivers(request: Request) -> DriverPhotosService:
+        return request.app.state.drivers
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -74,6 +92,16 @@ def create_app(
             raise HTTPException(status_code=404, detail="Standings not found") from None
         except ProviderUnavailable:
             raise HTTPException(status_code=502, detail="Standings provider unavailable") from None
+
+    @app.get("/seasons/{year}/drivers", response_model=SeasonDrivers)
+    async def season_drivers(
+        year: int = Path(ge=1950, le=2100),
+        photos: DriverPhotosService = Depends(get_drivers),
+    ) -> SeasonDrivers:
+        try:
+            return await photos.get_drivers(year)
+        except OpenF1Unavailable:
+            raise HTTPException(status_code=502, detail="Driver photo provider unavailable") from None
 
     @app.get(
         "/seasons/{year}/rounds/{round}/sessions/{session_type}/results",

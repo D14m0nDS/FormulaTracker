@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteStore
 import com.formulatracker.reminders.ReminderScheduleStore
 import com.formulatracker.reminders.ReminderSettings
@@ -50,6 +51,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.Instant
 import java.time.Year
 import java.time.ZoneId
@@ -78,6 +80,8 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     val favoriteStore = remember { FavoriteStore(appContext) }
     var favorite by remember { mutableStateOf(favoriteStore.read()) }
     val reminderScheduler = remember { SessionReminderScheduler(appContext) }
+    val driverPhotos = remember { DriverPhotos(File(appContext.cacheDir, "driver-photos")) }
+    var photoUrls by remember { mutableStateOf<Map<String, String?>>(emptyMap()) }
     var reminderPreferences by remember { mutableStateOf(reminderSettings.read()) }
     var currentSeasonSchedule by remember { mutableStateOf<SeasonSchedule?>(null) }
 
@@ -129,11 +133,28 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         }
     }
 
+    val weekend = (opened as? Opened.Weekend)?.weekend
+    val photosWanted = weekend != null || opened == Opened.Standings || opened == Opened.Favorites
+    val photoYear = if (opened == Opened.Favorites) currentYear else seasonYear
+    LaunchedEffect(photosWanted, photoYear) {
+        if (!photosWanted) {
+            return@LaunchedEffect
+        }
+        photoUrls = try {
+            source.fetchDrivers(photoYear).drivers.associate { driver ->
+                driver.code.uppercase() to driver.photoUrl
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
     BackHandler(enabled = opened != Opened.None) {
         opened = Opened.None
     }
 
-    val weekend = (opened as? Opened.Weekend)?.weekend
     Scaffold(
         topBar = {
             TopAppBar(
@@ -181,12 +202,25 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         when {
             weekend != null -> {
                 Column(modifier = Modifier.padding(innerPadding)) {
-                    WeekendResultsScreen(year = seasonYear, weekend = weekend, source = source, favorite = favorite)
+                    WeekendResultsScreen(
+                        year = seasonYear,
+                        weekend = weekend,
+                        source = source,
+                        favorite = favorite,
+                        photoUrls = photoUrls,
+                        photos = driverPhotos,
+                    )
                 }
             }
             opened == Opened.Standings -> {
                 Column(modifier = Modifier.padding(innerPadding)) {
-                    StandingsScreen(year = seasonYear, source = source, favorite = favorite)
+                    StandingsScreen(
+                        year = seasonYear,
+                        source = source,
+                        favorite = favorite,
+                        photoUrls = photoUrls,
+                        photos = driverPhotos,
+                    )
                 }
             }
             opened == Opened.Favorites -> {
@@ -195,6 +229,8 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
                         year = currentYear,
                         source = source,
                         favorite = favorite,
+                        photoUrls = photoUrls,
+                        photos = driverPhotos,
                         onFavorite = { next ->
                             favoriteStore.write(next)
                             favorite = next

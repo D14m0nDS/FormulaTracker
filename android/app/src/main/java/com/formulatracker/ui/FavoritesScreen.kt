@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,8 +19,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
@@ -44,6 +47,8 @@ fun FavoritesScreen(
     year: Int,
     source: ScheduleSource,
     favorite: FavoriteSelection,
+    photoUrls: Map<String, String?>,
+    photos: DriverPhotos,
     onFavorite: (FavoriteSelection) -> Unit,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
@@ -82,7 +87,7 @@ fun FavoritesScreen(
             }
         }
         is FavoritesLoad.Ready -> {
-            FavoriteLists(current.standings, favorite, onFavorite)
+            FavoriteLists(current.standings, favorite, photoUrls, photos, onFavorite)
         }
     }
 }
@@ -91,6 +96,8 @@ fun FavoritesScreen(
 private fun FavoriteLists(
     standings: SeasonStandings,
     favorite: FavoriteSelection,
+    photoUrls: Map<String, String?>,
+    photos: DriverPhotos,
     onFavorite: (FavoriteSelection) -> Unit,
 ) {
     LazyColumn(
@@ -108,6 +115,13 @@ private fun FavoriteLists(
             ChoiceRow(
                 label = driverChoiceLabel(driver),
                 selected = favorite.matchesDriver(driver),
+                portrait = {
+                    DriverPortrait(
+                        code = driver.code.ifBlank { driver.familyName },
+                        photoUrl = photoUrls[driver.code.uppercase()],
+                        photos = photos,
+                    )
+                },
             ) {
                 onFavorite(
                     favorite.copy(
@@ -132,13 +146,24 @@ private fun FavoriteLists(
 }
 
 @Composable
-private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodyLarge,
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+private fun ChoiceRow(
+    label: String,
+    selected: Boolean,
+    portrait: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    Row(
         modifier = Modifier.clickable(onClick = onClick).padding(vertical = 4.dp),
-    )
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        portrait?.invoke()
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
+    }
 }
 
 private fun FavoriteSelection.matchesDriver(driver: DriverStanding): Boolean {

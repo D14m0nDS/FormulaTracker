@@ -3,6 +3,7 @@ package com.formulatracker.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,8 +16,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
@@ -48,6 +51,8 @@ fun WeekendResultsScreen(
     weekend: RaceWeekend,
     source: ScheduleSource,
     favorite: FavoriteSelection = FavoriteSelection(),
+    photoUrls: Map<String, String?> = emptyMap(),
+    photos: DriverPhotos? = null,
 ) {
     val sessions = remember(weekend) { weekend.sessions.filter { it.type in RESULT_TYPES } }
     var sections by remember(weekend) {
@@ -84,13 +89,21 @@ fun WeekendResultsScreen(
                 title = session.name,
                 state = sections[session.type] ?: ResultSectionState.Loading,
                 favorite = favorite,
+                photoUrls = photoUrls,
+                photos = photos,
             )
         }
     }
 }
 
 @Composable
-private fun ResultSection(title: String, state: ResultSectionState, favorite: FavoriteSelection) {
+private fun ResultSection(
+    title: String,
+    state: ResultSectionState,
+    favorite: FavoriteSelection,
+    photoUrls: Map<String, String?>,
+    photos: DriverPhotos?,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         when (state) {
@@ -98,37 +111,64 @@ private fun ResultSection(title: String, state: ResultSectionState, favorite: Fa
             ResultSectionState.Missing -> Text("No results yet")
             is ResultSectionState.Failed -> Text(state.message)
             is ResultSectionState.Ready -> when (val results = state.results) {
-                is SessionResults.Qualifying -> QualifyingTable(results.results, favorite)
-                is SessionResults.Practice -> PracticeTable(results.results, favorite)
-                is SessionResults.Race -> RaceTable(results.results, favorite)
+                is SessionResults.Qualifying -> QualifyingTable(results.results, favorite, photoUrls, photos)
+                is SessionResults.Practice -> PracticeTable(results.results, favorite, photoUrls, photos)
+                is SessionResults.Race -> RaceTable(results.results, favorite, photoUrls, photos)
             }
         }
     }
 }
 
 @Composable
-private fun QualifyingTable(results: QualifyingResults, favorite: FavoriteSelection) {
+private fun QualifyingTable(
+    results: QualifyingResults,
+    favorite: FavoriteSelection,
+    photoUrls: Map<String, String?>,
+    photos: DriverPhotos?,
+) {
     results.rows.forEach { row ->
         val segments = row.segments.joinToString("  ") { segment ->
             val time = segment.time ?: "—"
             "${segment.code} $time"
         }
         val status = if (row.status != null && row.status != "FINISHED") "  ${row.status}" else ""
-        ResultLine("${row.positionText}  ${row.code}  ${row.team}  $segments$status", favorite.matches(row.code, row.team))
+        ResultLine(
+            code = row.code,
+            text = "${row.positionText}  ${row.code}  ${row.team}  $segments$status",
+            highlighted = favorite.matches(row.code, row.team),
+            photoUrl = photoUrls[row.code.uppercase()],
+            photos = photos,
+        )
     }
 }
 
 @Composable
-private fun PracticeTable(results: PracticeResults, favorite: FavoriteSelection) {
+private fun PracticeTable(
+    results: PracticeResults,
+    favorite: FavoriteSelection,
+    photoUrls: Map<String, String?>,
+    photos: DriverPhotos?,
+) {
     results.rows.forEach { row ->
         val time = row.time?.let { "  $it" }.orEmpty()
         val laps = row.laps?.let { "  $it laps" }.orEmpty()
-        ResultLine("${row.positionText}  ${row.code}  ${row.team}$time$laps", favorite.matches(row.code, row.team))
+        ResultLine(
+            code = row.code,
+            text = "${row.positionText}  ${row.code}  ${row.team}$time$laps",
+            highlighted = favorite.matches(row.code, row.team),
+            photoUrl = photoUrls[row.code.uppercase()],
+            photos = photos,
+        )
     }
 }
 
 @Composable
-private fun RaceTable(results: RaceResults, favorite: FavoriteSelection) {
+private fun RaceTable(
+    results: RaceResults,
+    favorite: FavoriteSelection,
+    photoUrls: Map<String, String?>,
+    photos: DriverPhotos?,
+) {
     results.rows.forEach { row ->
         val detail = when {
             row.classified && row.time != null -> row.time
@@ -137,16 +177,36 @@ private fun RaceTable(results: RaceResults, favorite: FavoriteSelection) {
         }
         val points = row.points?.let { "  ${formatPoints(it)} pts" }.orEmpty()
         val grid = row.grid?.let { "  grid $it" }.orEmpty()
-        ResultLine("${row.positionText}  ${row.code}  ${row.team}  $detail$points$grid", favorite.matches(row.code, row.team))
+        ResultLine(
+            code = row.code,
+            text = "${row.positionText}  ${row.code}  ${row.team}  $detail$points$grid",
+            highlighted = favorite.matches(row.code, row.team),
+            photoUrl = photoUrls[row.code.uppercase()],
+            photos = photos,
+        )
     }
 }
 
 @Composable
-private fun ResultLine(text: String, highlighted: Boolean) {
-    Text(
-        text = text,
-        color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-    )
+private fun ResultLine(
+    code: String,
+    text: String,
+    highlighted: Boolean,
+    photoUrl: String?,
+    photos: DriverPhotos?,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (photos != null) {
+            DriverPortrait(code = code, photoUrl = photoUrl, photos = photos)
+        }
+        Text(
+            text = text,
+            color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
+    }
 }
 
 private fun FavoriteSelection.matches(code: String, team: String): Boolean {

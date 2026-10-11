@@ -1,5 +1,7 @@
 package com.formulatracker.schedule
 
+import com.formulatracker.drivers.DriverDirectory
+import com.formulatracker.drivers.parseDrivers
 import com.formulatracker.results.ResultsNotFound
 import com.formulatracker.results.SessionResults
 import com.formulatracker.results.parseSessionResults
@@ -20,6 +22,8 @@ interface ScheduleSource {
     suspend fun fetchResults(year: Int, round: Int, sessionType: String): SessionResults
 
     suspend fun fetchStandings(year: Int): SeasonStandings
+
+    suspend fun fetchDrivers(year: Int): DriverDirectory
 }
 
 class HttpScheduleSource(
@@ -36,6 +40,10 @@ class HttpScheduleSource(
     override suspend fun fetchResults(year: Int, round: Int, sessionType: String): SessionResults {
         val body = get("/seasons/$year/rounds/$round/sessions/$sessionType/results")
         return parseSessionResults(body, sessionType)
+    }
+
+    override suspend fun fetchDrivers(year: Int): DriverDirectory {
+        return parseDrivers(get("/seasons/$year/drivers"))
     }
 
     override suspend fun fetchStandings(year: Int): SeasonStandings {

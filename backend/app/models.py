@@ -149,6 +149,17 @@ class SeasonStandings(BaseModel):
     constructors: list[ConstructorStanding]
 
 
+class DriverPhoto(BaseModel):
+    code: str
+    name: str
+    photo_url: str | None = None
+
+
+class SeasonDrivers(BaseModel):
+    season: int
+    drivers: list[DriverPhoto]
+
+
 class RaceResults(BaseModel):
     season: int
     round: int
