@@ -8,6 +8,27 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 
+data class ScheduleRefreshPlan(
+    val changes: List<ScheduleChange>,
+    val schedule: SeasonSchedule?,
+)
+
+fun planScheduleRefresh(
+    previous: SeasonSchedule?,
+    fetched: SeasonSchedule?,
+    now: Instant,
+    zone: ZoneId,
+    locale: Locale,
+): ScheduleRefreshPlan {
+    if (fetched == null) {
+        return ScheduleRefreshPlan(emptyList(), null)
+    }
+    return ScheduleRefreshPlan(
+        changes = scheduleChanges(previous, fetched, now, zone, locale),
+        schedule = fetched,
+    )
+}
+
 data class ScheduleChange(
     val notificationId: Int,
     val title: String,

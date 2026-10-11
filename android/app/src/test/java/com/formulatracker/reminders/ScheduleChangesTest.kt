@@ -74,6 +74,26 @@ class ScheduleChangesTest {
     }
 
     @Test
+    fun aFailedRefreshKeepsTheSavedCalendar() {
+        val saved = schedule(session("R", "Race", "2026-03-08T04:00:00Z"))
+
+        val plan = planScheduleRefresh(saved, fetched = null, now, zone, locale)
+
+        assertTrue(plan.changes.isEmpty())
+        assertEquals(null, plan.schedule)
+    }
+
+    @Test
+    fun theFirstRefreshIsStoredQuietly() {
+        val fetched = schedule(session("R", "Race", "2026-03-08T04:00:00Z"))
+
+        val plan = planScheduleRefresh(previous = null, fetched = fetched, now, zone, locale)
+
+        assertTrue(plan.changes.isEmpty())
+        assertEquals(fetched, plan.schedule)
+    }
+
+    @Test
     fun aPastSessionChangeStaysQuiet() {
         val previous = schedule(session("FP1", "Practice 1", "2026-03-01T01:30:00Z"))
         val moved = schedule(session("FP1", "Practice 1", "2026-03-01T02:00:00Z"))
