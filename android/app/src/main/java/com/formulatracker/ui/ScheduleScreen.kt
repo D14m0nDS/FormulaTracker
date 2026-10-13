@@ -38,6 +38,7 @@ import com.formulatracker.reminders.ReminderScheduleStore
 import com.formulatracker.reminders.ReminderSettings
 import com.formulatracker.reminders.SessionReminderScheduler
 import com.formulatracker.reminders.scheduleChanges
+import com.formulatracker.reminders.calendarUpdatedMessage
 import com.formulatracker.reminders.scheduleRemindersFor
 import com.formulatracker.reminders.showScheduledNotification
 import com.formulatracker.schedule.FIRST_SEASON_YEAR
@@ -77,6 +78,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     val appContext = LocalContext.current.applicationContext
     val reminderSettings = remember { ReminderSettings(appContext) }
     val reminderScheduleStore = remember { ReminderScheduleStore(appContext) }
+    var savedAt by remember { mutableStateOf(reminderScheduleStore.readSavedAt()) }
     val favoriteStore = remember { FavoriteStore(appContext) }
     var favorite by remember { mutableStateOf(favoriteStore.read()) }
     val reminderScheduler = remember { SessionReminderScheduler(appContext) }
@@ -108,19 +110,21 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         if (!scheduleRemindersFor(ready.schedule.season, currentYear)) {
             return@LaunchedEffect
         }
+        val loadedAt = Instant.now()
         val changes = withContext(Dispatchers.IO) {
             val previous = reminderScheduleStore.read()
             val found = scheduleChanges(
                 previous = previous,
                 current = ready.schedule,
-                now = Instant.now(),
+                now = loadedAt,
                 zone = ZoneId.systemDefault(),
                 locale = Locale.getDefault(),
             )
-            reminderScheduleStore.write(ready.schedule)
+            reminderScheduleStore.write(ready.schedule, loadedAt)
             found
         }
         ensureActive()
+        savedAt = loadedAt
         changes.forEach { change ->
             showScheduledNotification(appContext, change.title, change.text, change.notificationId)
         }
@@ -265,6 +269,16 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
             else -> {
                 ScheduleContent(
                     state = state,
+                    updatedMessage = if (seasonYear == currentYear) {
+                        calendarUpdatedMessage(
+                            savedAt,
+                            Instant.now(),
+                            ZoneId.systemDefault(),
+                            Locale.getDefault(),
+                        )
+                    } else {
+                        null
+                    },
                     onRetry = { attempt += 1 },
                     onWeekend = { opened = Opened.Weekend(it) },
                     modifier = Modifier.padding(innerPadding),
@@ -340,19 +354,24 @@ private fun SeasonYearBar(
 @Composable
 fun ScheduleContent(
     state: ScheduleUiState,
+    updatedMessage: String?,
     onRetry: () -> Unit,
     onWeekend: (RaceWeekend) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (state) {
         ScheduleUiState.Loading -> {
-            Text("Loading schedule", modifier = modifier.padding(16.dp))
+            Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                UpdatedLine(updatedMessage)
+                Text("Loading schedule")
+            }
         }
         is ScheduleUiState.Failed -> {
             Column(
                 modifier = modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                UpdatedLine(updatedMessage)
                 Text(state.message)
                 Button(onClick = onRetry) {
                     Text("Try again")
@@ -361,19 +380,32 @@ fun ScheduleContent(
         }
         is ScheduleUiState.Ready -> {
             if (state.schedule.events.isEmpty()) {
-                Text("No races on this calendar", modifier = modifier.padding(16.dp))
+                Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    UpdatedLine(updatedMessage)
+                    Text("No races on this calendar")
+                }
             } else {
                 LazyColumn(
                     modifier = modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
+                    if (updatedMessage != null) {
+                        item { UpdatedLine(updatedMessage) }
+                    }
                     items(state.schedule.events, key = { it.round }) { weekend ->
                         WeekendSection(weekend, onClick = { onWeekend(weekend) })
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun UpdatedLine(message: String?) {
+    if (message != null) {
+        Text(message, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
