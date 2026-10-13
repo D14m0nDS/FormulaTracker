@@ -1,6 +1,7 @@
 package com.formulatracker.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -58,7 +59,7 @@ fun RemindersScreen(
     val scheduler = remember { SessionReminderScheduler(context.applicationContext) }
     var exactAlarmsAllowed by remember { mutableStateOf(scheduler.exactAlarmsAllowed()) }
     var notificationsAllowed by remember {
-        mutableStateOf(!ReminderReceiver.missingNotificationPermission(context))
+        mutableStateOf(!ReminderReceiver.notificationsTurnedOff(context))
     }
     var armTest by remember { mutableStateOf(false) }
     var testScheduled by remember { mutableStateOf(false) }
@@ -69,8 +70,9 @@ fun RemindersScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        notificationsAllowed = granted
-        if (granted && armTest) {
+        val blocked = ReminderReceiver.notificationsTurnedOff(context)
+        notificationsAllowed = !blocked
+        if (granted && armTest && !blocked) {
             scheduler.scheduleTest()
             testScheduled = true
         }
@@ -81,7 +83,7 @@ fun RemindersScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 exactAlarmsAllowed = scheduler.exactAlarmsAllowed()
-                notificationsAllowed = !ReminderReceiver.missingNotificationPermission(context)
+                notificationsAllowed = !ReminderReceiver.notificationsTurnedOff(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -106,6 +108,9 @@ fun RemindersScreen(
         )
         if (!notificationsAllowed) {
             Text("Notifications are off, so reminders cannot appear.")
+            TextButton(onClick = { openNotificationSettings(context) }) {
+                Text("Allow notifications")
+            }
         }
         if (!exactAlarmsAllowed) {
             Text("Exact alarms are off, so reminders may arrive late.")
@@ -208,14 +213,20 @@ fun RemindersScreen(
         )
         Button(
             onClick = {
-                if (ReminderReceiver.missingNotificationPermission(context)) {
-                    armTest = true
-                    if (Build.VERSION.SDK_INT >= 33) {
-                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                when {
+                    ReminderReceiver.missingNotificationPermission(context) -> {
+                        armTest = true
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
                     }
-                } else {
-                    scheduler.scheduleTest()
-                    testScheduled = true
+                    ReminderReceiver.notificationsTurnedOff(context) -> {
+                        openNotificationSettings(context)
+                    }
+                    else -> {
+                        scheduler.scheduleTest()
+                        testScheduled = true
+                    }
                 }
             },
         ) {
@@ -225,6 +236,13 @@ fun RemindersScreen(
             Text("A reminder is scheduled for about a minute from now.")
         }
     }
+}
+
+private fun openNotificationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+    }
+    context.startActivity(intent)
 }
 
 @Composable

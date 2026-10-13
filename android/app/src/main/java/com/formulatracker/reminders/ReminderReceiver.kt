@@ -13,6 +13,11 @@ import androidx.core.content.ContextCompat
 import com.formulatracker.MainActivity
 import com.formulatracker.R
 
+internal fun notificationsBlockReminders(
+    postNotificationsMissing: Boolean,
+    appNotificationsEnabled: Boolean,
+): Boolean = postNotificationsMissing || !appNotificationsEnabled
+
 internal fun showScheduledNotification(
     context: Context,
     title: String,
@@ -70,6 +75,12 @@ class ReminderReceiver : BroadcastReceiver() {
                 Manifest.permission.POST_NOTIFICATIONS,
             )
             return granted != PackageManager.PERMISSION_GRANTED
+        }
+
+        fun notificationsTurnedOff(context: Context): Boolean {
+            val enabled = context.getSystemService(NotificationManager::class.java)
+                ?.areNotificationsEnabled() == true
+            return notificationsBlockReminders(missingNotificationPermission(context), enabled)
         }
     }
 }
