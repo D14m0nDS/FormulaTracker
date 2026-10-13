@@ -20,10 +20,12 @@ from app.models import (
     SeasonSchedule,
     SeasonStandings,
     SeasonTeams,
+    SessionFinishWatch,
     SessionResults,
 )
 from app.openf1 import OPENF1_BASE_URL, DriverPhotosService, OpenF1Unavailable
 from app.results import ResultsService, RoundNotFound, SessionNotScheduled
+from app.session_finish import SessionFinishService
 from app.standings import StandingsService
 from app.teams import TeamColorsService
 
@@ -34,6 +36,7 @@ def create_app(
     standings: StandingsService | None = None,
     drivers: DriverPhotosService | None = None,
     teams: TeamColorsService | None = None,
+    finishes: SessionFinishService | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -45,6 +48,7 @@ def create_app(
             app.state.teams = TeamColorsService(client)
             openf1 = httpx.AsyncClient(base_url=OPENF1_BASE_URL, timeout=httpx.Timeout(10.0))
             app.state.drivers = DriverPhotosService(openf1)
+            app.state.finishes = SessionFinishService(openf1, app.state.schedules)
             yield
             await openf1.aclose()
             await app.state.schedules.aclose()
@@ -54,6 +58,7 @@ def create_app(
             app.state.standings = standings
             app.state.drivers = drivers
             app.state.teams = teams
+            app.state.finishes = finishes
             yield
 
     app = FastAPI(title="FormulaTracker", lifespan=lifespan)
@@ -72,6 +77,9 @@ def create_app(
 
     def get_teams(request: Request) -> TeamColorsService:
         return request.app.state.teams
+
+    def get_finishes(request: Request) -> SessionFinishService:
+        return request.app.state.finishes
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -110,6 +118,20 @@ def create_app(
             return await colors.get_teams(year)
         except ProviderUnavailable:
             raise HTTPException(status_code=502, detail="Team color provider unavailable") from None
+
+    @app.get("/seasons/{year}/session-finish", response_model=SessionFinishWatch)
+    async def session_finish(
+        year: int = Path(ge=1950, le=2100),
+        finish_service: SessionFinishService = Depends(get_finishes),
+    ) -> SessionFinishWatch:
+        try:
+            return await finish_service.watch(year)
+        except SeasonNotFound:
+            raise HTTPException(status_code=404, detail="Season not found") from None
+        except ProviderUnavailable:
+            raise HTTPException(status_code=502, detail="Schedule provider unavailable") from None
+        except OpenF1Unavailable:
+            raise HTTPException(status_code=502, detail="Session finish provider unavailable") from None
 
     @app.get("/seasons/{year}/drivers", response_model=SeasonDrivers)
     async def season_drivers(

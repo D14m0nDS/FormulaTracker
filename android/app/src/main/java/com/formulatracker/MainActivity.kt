@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.formulatracker.reminders.enqueueScheduleRefresh
+import com.formulatracker.reminders.enqueueSessionFinishCheck
 import com.formulatracker.ui.ScheduleScreen
 import com.formulatracker.ui.theme.FormulaTrackerTheme
 
@@ -13,6 +14,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         enqueueScheduleRefresh(applicationContext)
+        enqueueSessionFinishCheck(applicationContext)
         setContent {
             FormulaTrackerTheme {
                 ScheduleScreen()

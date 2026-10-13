@@ -25,7 +25,7 @@ def select_race_session(sessions: list, now: datetime) -> dict | None:
             continue
         if session.get("session_name") != "Race" or session.get("is_cancelled"):
             continue
-        end = _parse_time(session.get("date_end"))
+        end = parse_openf1_time(session.get("date_end"))
         if end is None or end + LIVE_MARGIN > now:
             continue
         finished.append((end, session))
@@ -108,7 +108,7 @@ class DriverPhotosService:
         return drivers
 
 
-def _parse_time(value) -> datetime | None:
+def parse_openf1_time(value) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
     try:

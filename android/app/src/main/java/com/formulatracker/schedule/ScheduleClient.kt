@@ -2,6 +2,8 @@ package com.formulatracker.schedule
 
 import com.formulatracker.drivers.DriverDirectory
 import com.formulatracker.drivers.parseDrivers
+import com.formulatracker.reminders.SessionFinishWatch
+import com.formulatracker.reminders.parseSessionFinish
 import com.formulatracker.results.ResultsNotFound
 import com.formulatracker.results.SessionResults
 import com.formulatracker.results.parseSessionResults
@@ -52,6 +54,14 @@ class HttpScheduleSource(
 
     override suspend fun fetchTeams(year: Int): SeasonTeams {
         return parseTeams(get("/seasons/$year/teams"))
+    }
+
+    suspend fun fetchSessionFinish(year: Int): SessionFinishWatch {
+        return try {
+            parseSessionFinish(get("/seasons/$year/session-finish"))
+        } catch (_: ResultsNotFound) {
+            throw IOException("Session finish not found")
+        }
     }
 
     override suspend fun fetchStandings(year: Int): SeasonStandings {

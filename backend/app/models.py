@@ -170,6 +170,24 @@ class SeasonTeams(BaseModel):
     teams: list[TeamColor]
 
 
+class FinishedSession(BaseModel):
+    round: int
+    event_name: str
+    session_type: str
+    session_name: str
+    listed_end: datetime
+    finished_at: datetime
+
+    @field_serializer("listed_end", "finished_at")
+    def serialize_times(self, value: datetime) -> str:
+        return format_utc(value)
+
+
+class SessionFinishWatch(BaseModel):
+    season: int
+    sessions: list[FinishedSession]
+
+
 class RaceResults(BaseModel):
     season: int
     round: int
