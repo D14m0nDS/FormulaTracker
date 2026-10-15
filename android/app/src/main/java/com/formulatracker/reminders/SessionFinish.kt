@@ -1,10 +1,12 @@
 package com.formulatracker.reminders
 
+import android.content.Context
 import org.json.JSONObject
 import java.time.Instant
 
 internal const val FIRST_SESSION_FINISH_YEAR = 2023
 internal const val SESSION_FINISH_NOTIFICATION_BASE = 40_000
+internal const val TEST_SESSION_FINISH_NOTIFICATION_ID = 41_000
 
 data class FinishedSession(
     val round: Int,
@@ -89,6 +91,15 @@ internal fun sessionFinishNotificationId(round: Int, type: String): Int? {
 
 internal fun sessionFinishKey(season: Int, round: Int, type: String): String {
     return "$season:$round:$type"
+}
+
+internal fun showTestSessionFinish(context: Context) {
+    showScheduledNotification(
+        context,
+        "FormulaTracker",
+        "This is a session-finished notice",
+        TEST_SESSION_FINISH_NOTIFICATION_ID,
+    )
 }
 
 private fun parseFinishedSession(session: JSONObject?): FinishedSession {

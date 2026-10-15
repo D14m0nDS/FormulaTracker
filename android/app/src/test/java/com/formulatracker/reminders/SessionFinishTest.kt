@@ -51,6 +51,17 @@ class SessionFinishTest {
     }
 
     @Test
+    fun theSampleNoticeDoesNotUseARealSessionId() {
+        val realIds = (1..30).flatMap { round ->
+            REMINDER_SESSION_TYPES.map { sessionFinishNotificationId(round, it.type) }
+        }
+
+        assertTrue(TEST_SESSION_FINISH_NOTIFICATION_ID > SESSION_FINISH_NOTIFICATION_BASE)
+        assertTrue(realIds.none { it == TEST_SESSION_FINISH_NOTIFICATION_ID })
+        assertTrue(TEST_SESSION_FINISH_NOTIFICATION_ID != TEST_REMINDER_REQUEST_CODE)
+    }
+
+    @Test
     fun thePayloadReadsTheListedEndAndTheFinishTime() {
         val watch = parseSessionFinish(
             """

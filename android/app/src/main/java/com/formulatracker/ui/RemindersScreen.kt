@@ -49,6 +49,7 @@ import com.formulatracker.reminders.REMINDER_SESSION_TYPES
 import com.formulatracker.reminders.ReminderPreferences
 import com.formulatracker.reminders.ReminderReceiver
 import com.formulatracker.reminders.SessionReminderScheduler
+import com.formulatracker.reminders.showTestSessionFinish
 
 @Composable
 fun RemindersScreen(
@@ -62,7 +63,9 @@ fun RemindersScreen(
         mutableStateOf(!ReminderReceiver.notificationsTurnedOff(context))
     }
     var armTest by remember { mutableStateOf(false) }
+    var armFinishTest by remember { mutableStateOf(false) }
     var testScheduled by remember { mutableStateOf(false) }
+    var finishShown by remember { mutableStateOf(false) }
     var leadText by remember { mutableStateOf(preferences.leadMinutes.toString()) }
     var beforeText by remember { mutableStateOf(preferences.beforeTemplate) }
     var atStartText by remember { mutableStateOf(preferences.atStartTemplate) }
@@ -72,11 +75,18 @@ fun RemindersScreen(
     ) { granted ->
         val blocked = ReminderReceiver.notificationsTurnedOff(context)
         notificationsAllowed = !blocked
-        if (granted && armTest && !blocked) {
-            scheduler.scheduleTest()
-            testScheduled = true
+        if (granted && !blocked) {
+            if (armTest) {
+                scheduler.scheduleTest()
+                testScheduled = true
+            }
+            if (armFinishTest) {
+                showTestSessionFinish(context.applicationContext)
+                finishShown = true
+            }
         }
         armTest = false
+        armFinishTest = false
     }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -234,6 +244,34 @@ fun RemindersScreen(
         }
         if (testScheduled) {
             Text("A reminder is scheduled for about a minute from now.")
+        }
+        Text(
+            "This posts one sample. It does not mean a session has finished.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Button(
+            onClick = {
+                when {
+                    ReminderReceiver.missingNotificationPermission(context) -> {
+                        armFinishTest = true
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                    ReminderReceiver.notificationsTurnedOff(context) -> {
+                        openNotificationSettings(context)
+                    }
+                    else -> {
+                        showTestSessionFinish(context.applicationContext)
+                        finishShown = true
+                    }
+                }
+            },
+        ) {
+            Text("Try a finished notice")
+        }
+        if (finishShown) {
+            Text("A session-finished notice was shown.")
         }
     }
 }
