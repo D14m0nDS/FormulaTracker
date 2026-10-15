@@ -16,6 +16,11 @@ class SessionFinishTest {
     )
 
     @Test
+    fun theFinishNoticeStartsOn() {
+        assertTrue(ReminderPreferences().sessionFinished)
+    }
+
+    @Test
     fun aFinishBecomesOneNotice() {
         val plan = planSessionFinishNotices(SessionFinishWatch(2026, listOf(race)), emptySet())
 

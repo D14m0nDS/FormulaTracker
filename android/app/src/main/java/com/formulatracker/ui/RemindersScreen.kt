@@ -245,6 +245,16 @@ fun RemindersScreen(
         if (testScheduled) {
             Text("A reminder is scheduled for about a minute from now.")
         }
+        Text("Session finished", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "One notice after the timing feed says the session has finished. It is separate from the scheduled reminders.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        ToggleRow(
+            label = "Session finished",
+            checked = preferences.sessionFinished,
+            onChecked = { onPreferences(preferences.copy(sessionFinished = it)) },
+        )
         Text(
             "This posts one sample. It does not mean a session has finished.",
             style = MaterialTheme.typography.bodyMedium,

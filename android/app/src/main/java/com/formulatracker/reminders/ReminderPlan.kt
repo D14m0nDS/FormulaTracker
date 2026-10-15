@@ -38,6 +38,7 @@ data class ReminderPreferences(
     val beforeTemplate: String = DEFAULT_BEFORE_TEMPLATE,
     val atStartTemplate: String = DEFAULT_AT_START_TEMPLATE,
     val raceWeekTemplate: String = DEFAULT_RACE_WEEK_TEMPLATE,
+    val sessionFinished: Boolean = true,
 )
 
 data class PlannedReminder(

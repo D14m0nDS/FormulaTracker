@@ -32,6 +32,11 @@ class SessionFinishWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        // Leave the saved keys alone while this is off, so turning it back on
+        // can still notify a session that is inside the five-hour window.
+        if (!ReminderSettings(applicationContext).read().sessionFinished) {
+            return Result.success()
+        }
         if (ReminderReceiver.notificationsTurnedOff(applicationContext)) {
             return Result.success()
         }
