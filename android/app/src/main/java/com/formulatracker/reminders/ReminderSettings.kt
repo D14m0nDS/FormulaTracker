@@ -17,9 +17,6 @@ class ReminderSettings(context: Context) {
             raceWeek = preferences.getBoolean(KEY_RACE_WEEK, true),
             sessionFinished = preferences.getBoolean(KEY_SESSION_FINISHED, true),
             leadMinutes = preferences.getInt(KEY_LEAD, DEFAULT_LEAD_MINUTES),
-            beforeTemplate = preferences.getString(KEY_BEFORE_TEXT, DEFAULT_BEFORE_TEMPLATE).orEmpty(),
-            atStartTemplate = preferences.getString(KEY_AT_TEXT, DEFAULT_AT_START_TEMPLATE).orEmpty(),
-            raceWeekTemplate = preferences.getString(KEY_RACE_WEEK_TEXT, DEFAULT_RACE_WEEK_TEMPLATE).orEmpty(),
         )
     }
 
@@ -33,9 +30,9 @@ class ReminderSettings(context: Context) {
             putBoolean(KEY_RACE_WEEK, value.raceWeek)
             putBoolean(KEY_SESSION_FINISHED, value.sessionFinished)
             putInt(KEY_LEAD, value.leadMinutes)
-            putString(KEY_BEFORE_TEXT, value.beforeTemplate)
-            putString(KEY_AT_TEXT, value.atStartTemplate)
-            putString(KEY_RACE_WEEK_TEXT, value.raceWeekTemplate)
+            remove(KEY_BEFORE_TEXT)
+            remove(KEY_AT_TEXT)
+            remove(KEY_RACE_WEEK_TEXT)
         }.apply()
     }
 

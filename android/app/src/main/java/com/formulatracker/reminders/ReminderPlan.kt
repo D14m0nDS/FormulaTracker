@@ -35,9 +35,6 @@ data class ReminderPreferences(
     val atStart: Boolean = true,
     val raceWeek: Boolean = true,
     val leadMinutes: Int = DEFAULT_LEAD_MINUTES,
-    val beforeTemplate: String = DEFAULT_BEFORE_TEMPLATE,
-    val atStartTemplate: String = DEFAULT_AT_START_TEMPLATE,
-    val raceWeekTemplate: String = DEFAULT_RACE_WEEK_TEMPLATE,
     val sessionFinished: Boolean = true,
 )
 
@@ -53,11 +50,6 @@ internal const val TEST_REMINDER_REQUEST_CODE = 10_001
 internal const val RACE_WEEK_REQUEST_CODE_BASE = 5_000
 internal fun usableLeadMinutes(minutes: Int): Int {
     return minutes.coerceIn(MIN_LEAD_MINUTES, MAX_LEAD_MINUTES)
-}
-
-internal fun reminderText(template: String, fallback: String, session: String, minutes: Int): String {
-    val used = template.ifBlank { fallback }
-    return used.replace("{session}", session).replace("{minutes}", minutes.toString())
 }
 
 private const val SLOTS_PER_ROUND = 14
@@ -126,10 +118,7 @@ fun planReminders(
                             requestCode = requestCode,
                             triggerAt = triggerAt,
                             title = title,
-                            text = withFavorite(
-                                reminderText(preferences.raceWeekTemplate, DEFAULT_RACE_WEEK_TEMPLATE, "", usableLeadMinutes(preferences.leadMinutes)),
-                                favorite,
-                            ),
+                            text = withFavorite(DEFAULT_RACE_WEEK_TEMPLATE, favorite),
                         ),
                     )
                 }
@@ -149,7 +138,7 @@ fun planReminders(
                     triggerAt = session.start,
                     title = title,
                     text = withFavorite(
-                        reminderText(preferences.atStartTemplate, DEFAULT_AT_START_TEMPLATE, label, minutes),
+                        DEFAULT_AT_START_TEMPLATE.replace("{session}", label),
                         favorite,
                     ),
                     now = now,
@@ -163,7 +152,9 @@ fun planReminders(
                     triggerAt = session.start.minus(Duration.ofMinutes(minutes.toLong())),
                     title = title,
                     text = withFavorite(
-                        reminderText(preferences.beforeTemplate, DEFAULT_BEFORE_TEMPLATE, label, minutes),
+                        DEFAULT_BEFORE_TEMPLATE
+                            .replace("{session}", label)
+                            .replace("{minutes}", minutes.toString()),
                         favorite,
                     ),
                     now = now,

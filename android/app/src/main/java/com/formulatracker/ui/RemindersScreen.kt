@@ -33,16 +33,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.formulatracker.reminders.DEFAULT_AT_START_TEMPLATE
-import com.formulatracker.reminders.DEFAULT_BEFORE_TEMPLATE
-import com.formulatracker.reminders.DEFAULT_RACE_WEEK_TEMPLATE
 import com.formulatracker.reminders.MAX_LEAD_MINUTES
 import com.formulatracker.reminders.MIN_LEAD_MINUTES
 import com.formulatracker.reminders.REMINDER_SESSION_TYPES
@@ -67,9 +63,6 @@ fun RemindersScreen(
     var testScheduled by remember { mutableStateOf(false) }
     var finishShown by remember { mutableStateOf(false) }
     var leadText by remember { mutableStateOf(preferences.leadMinutes.toString()) }
-    var beforeText by remember { mutableStateOf(preferences.beforeTemplate) }
-    var atStartText by remember { mutableStateOf(preferences.atStartTemplate) }
-    var raceWeekText by remember { mutableStateOf(preferences.raceWeekTemplate) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -171,11 +164,6 @@ fun RemindersScreen(
             checked = preferences.atStart,
             onChecked = { onPreferences(preferences.copy(atStart = it)) },
         )
-        Text("Wording", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Use {session} for the session name and {minutes} for the lead time. A blank message keeps the original sentence.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
         OutlinedTextField(
             value = leadText,
             onValueChange = { raw ->
@@ -190,36 +178,6 @@ fun RemindersScreen(
             label = { Text("Minutes before") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        )
-        MessageField(
-            label = "Before the start",
-            value = beforeText,
-            onValue = { beforeText = it },
-            onFinished = {
-                val next = beforeText.ifBlank { DEFAULT_BEFORE_TEMPLATE }
-                beforeText = next
-                onPreferences(preferences.copy(beforeTemplate = next))
-            },
-        )
-        MessageField(
-            label = "At the scheduled start",
-            value = atStartText,
-            onValue = { atStartText = it },
-            onFinished = {
-                val next = atStartText.ifBlank { DEFAULT_AT_START_TEMPLATE }
-                atStartText = next
-                onPreferences(preferences.copy(atStartTemplate = next))
-            },
-        )
-        MessageField(
-            label = "Race week",
-            value = raceWeekText,
-            onValue = { raceWeekText = it },
-            onFinished = {
-                val next = raceWeekText.ifBlank { DEFAULT_RACE_WEEK_TEMPLATE }
-                raceWeekText = next
-                onPreferences(preferences.copy(raceWeekTemplate = next))
-            },
         )
         Button(
             onClick = {
@@ -291,30 +249,6 @@ private fun openNotificationSettings(context: Context) {
         putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
     }
     context.startActivity(intent)
-}
-
-@Composable
-private fun MessageField(
-    label: String,
-    value: String,
-    onValue: (String) -> Unit,
-    onFinished: () -> Unit,
-) {
-    var hadFocus by remember { mutableStateOf(false) }
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValue,
-        modifier = Modifier
-            .fillMaxWidth()
-            .onFocusChanged { focus ->
-                if (hadFocus && !focus.isFocused) {
-                    onFinished()
-                }
-                hadFocus = focus.isFocused
-            },
-        label = { Text(label) },
-        minLines = 2,
-    )
 }
 
 @Composable
