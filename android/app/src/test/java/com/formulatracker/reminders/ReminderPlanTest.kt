@@ -39,6 +39,14 @@ class ReminderPlanTest {
     }
 
     @Test
+    fun leadMinutesStepByFifteenAndStayInRange() {
+        assertEquals(45, steppedLeadMinutes(60, -LEAD_STEP_MINUTES))
+        assertEquals(75, steppedLeadMinutes(60, LEAD_STEP_MINUTES))
+        assertEquals(1, steppedLeadMinutes(10, -LEAD_STEP_MINUTES))
+        assertEquals(1440, steppedLeadMinutes(1430, LEAD_STEP_MINUTES))
+    }
+
+    @Test
     fun aCustomLeadReplacesTheDefault() {
         val schedule = schedule(session("Q", "Qualifying", "2026-03-06T00:30:00Z"))
         val preferences = ReminderPreferences(

@@ -25,6 +25,7 @@ val REMINDER_SESSION_TYPES = listOf(
 const val DEFAULT_LEAD_MINUTES = 60
 const val MIN_LEAD_MINUTES = 1
 const val MAX_LEAD_MINUTES = 24 * 60
+const val LEAD_STEP_MINUTES = 15
 const val DEFAULT_BEFORE_TEMPLATE = "{session} is scheduled to start in {minutes} minutes"
 const val DEFAULT_AT_START_TEMPLATE = "{session} is scheduled to start"
 const val DEFAULT_RACE_WEEK_TEMPLATE = "Race week is scheduled to begin"
@@ -50,6 +51,10 @@ internal const val TEST_REMINDER_REQUEST_CODE = 10_001
 internal const val RACE_WEEK_REQUEST_CODE_BASE = 5_000
 internal fun usableLeadMinutes(minutes: Int): Int {
     return minutes.coerceIn(MIN_LEAD_MINUTES, MAX_LEAD_MINUTES)
+}
+
+internal fun steppedLeadMinutes(current: Int, step: Int): Int {
+    return (usableLeadMinutes(current) + step).coerceIn(MIN_LEAD_MINUTES, MAX_LEAD_MINUTES)
 }
 
 private const val SLOTS_PER_ROUND = 14

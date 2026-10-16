@@ -10,7 +10,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,15 +31,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.formulatracker.reminders.LEAD_STEP_MINUTES
 import com.formulatracker.reminders.MAX_LEAD_MINUTES
 import com.formulatracker.reminders.MIN_LEAD_MINUTES
 import com.formulatracker.reminders.REMINDER_SESSION_TYPES
+import com.formulatracker.reminders.steppedLeadMinutes
+import com.formulatracker.reminders.usableLeadMinutes
 import com.formulatracker.reminders.ReminderPreferences
 import com.formulatracker.reminders.ReminderReceiver
 import com.formulatracker.reminders.SessionReminderScheduler
@@ -62,7 +62,6 @@ fun RemindersScreen(
     var armFinishTest by remember { mutableStateOf(false) }
     var testScheduled by remember { mutableStateOf(false) }
     var finishShown by remember { mutableStateOf(false) }
-    var leadText by remember { mutableStateOf(preferences.leadMinutes.toString()) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -164,20 +163,9 @@ fun RemindersScreen(
             checked = preferences.atStart,
             onChecked = { onPreferences(preferences.copy(atStart = it)) },
         )
-        OutlinedTextField(
-            value = leadText,
-            onValueChange = { raw ->
-                val digits = raw.filter { it.isDigit() }.take(4)
-                leadText = digits
-                val minutes = digits.toIntOrNull()
-                if (minutes != null && minutes in MIN_LEAD_MINUTES..MAX_LEAD_MINUTES) {
-                    onPreferences(preferences.copy(leadMinutes = minutes))
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Minutes before") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        LeadMinutesRow(
+            minutes = usableLeadMinutes(preferences.leadMinutes),
+            onMinutes = { onPreferences(preferences.copy(leadMinutes = it)) },
         )
         Button(
             onClick = {
@@ -249,6 +237,29 @@ private fun openNotificationSettings(context: Context) {
         putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
     }
     context.startActivity(intent)
+}
+
+@Composable
+private fun LeadMinutesRow(minutes: Int, onMinutes: (Int) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(
+            onClick = { onMinutes(steppedLeadMinutes(minutes, -LEAD_STEP_MINUTES)) },
+            enabled = minutes > MIN_LEAD_MINUTES,
+        ) {
+            Text("−")
+        }
+        Text("$minutes minutes before", style = MaterialTheme.typography.bodyLarge)
+        TextButton(
+            onClick = { onMinutes(steppedLeadMinutes(minutes, LEAD_STEP_MINUTES)) },
+            enabled = minutes < MAX_LEAD_MINUTES,
+        ) {
+            Text("+")
+        }
+    }
 }
 
 @Composable
