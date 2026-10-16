@@ -1,5 +1,6 @@
 package com.formulatracker.schedule
 
+import com.formulatracker.BuildConfig
 import com.formulatracker.drivers.DriverDirectory
 import com.formulatracker.drivers.parseDrivers
 import com.formulatracker.reminders.SessionFinishWatch
@@ -33,7 +34,7 @@ interface ScheduleSource {
 }
 
 class HttpScheduleSource(
-    private val baseUrl: String = EMULATOR_BACKEND,
+    private val baseUrl: String = BuildConfig.BACKEND_URL,
 ) : ScheduleSource {
     override suspend fun fetch(year: Int): SeasonSchedule {
         return try {
@@ -104,7 +105,6 @@ class HttpScheduleSource(
     }
 
     private companion object {
-        const val EMULATOR_BACKEND = "http://10.0.2.2:8000"
         const val TIMEOUT_MILLIS = 10_000
     }
 }
