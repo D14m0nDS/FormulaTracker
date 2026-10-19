@@ -1,5 +1,64 @@
 services:
   backend:
     build: ./backend
+    # Loopback only, so the emulator can use 10.0.2.2:8000 and the internet cannot.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["public"]
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  caddy-local:
+    image: caddy:2-alpine
+    profiles: ["authcheck"]
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:80"
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}
+    volumes:
+      - ./caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+
+  duckdns:
+    image: alpine:3.22
+    profiles: ["public"]
+    restart: unless-stopped
+    environment:
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:-}
+      DUCKDNS_DOMAIN: formulatracker
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -z "$$DUCKDNS_TOKEN" ]; then
+          echo "Set DUCKDNS_TOKEN in .env"
+          exit 1
+        fi
+        while true; do
+          if wget -qO- "https://www.duckdns.org/update?domains=$$DUCKDNS_DOMAIN&token=$$DUCKDNS_TOKEN&ip="; then
+            echo
+          else
+            echo "DuckDNS update failed"
+          fi
+          sleep 300
+        done
+
+volumes:
+  caddy_data:
+  caddy_config:

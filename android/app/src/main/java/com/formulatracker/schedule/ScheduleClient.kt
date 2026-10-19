@@ -19,7 +19,16 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Base64
 import kotlin.coroutines.coroutineContext
+
+internal fun basicAuthorization(username: String, password: String): String? {
+    if (username.isBlank() || password.isBlank()) {
+        return null
+    }
+    val token = Base64.getEncoder().encodeToString("$username:$password".toByteArray(Charsets.UTF_8))
+    return "Basic $token"
+}
 
 interface ScheduleSource {
     suspend fun fetch(year: Int): SeasonSchedule
@@ -35,6 +44,8 @@ interface ScheduleSource {
 
 class HttpScheduleSource(
     private val baseUrl: String = BuildConfig.BACKEND_URL,
+    private val username: String = BuildConfig.BACKEND_USER,
+    private val password: String = BuildConfig.BACKEND_PASSWORD,
 ) : ScheduleSource {
     override suspend fun fetch(year: Int): SeasonSchedule {
         return try {
@@ -78,6 +89,9 @@ class HttpScheduleSource(
         connection.connectTimeout = TIMEOUT_MILLIS
         connection.readTimeout = TIMEOUT_MILLIS
         connection.requestMethod = "GET"
+        basicAuthorization(username, password)?.let { header ->
+            connection.setRequestProperty("Authorization", header)
+        }
         // Changing year cancels this coroutine. Disconnect so a slow 502 for the
         // year already left cannot stay open and later overwrite the screen.
         val cancel = coroutineContext.job.invokeOnCompletion { cause ->

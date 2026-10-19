@@ -1,0 +1,11 @@
+{
+	email {$ACME_EMAIL}
+}
+
+formulatracker.duckdns.org {
+	# The API has no accounts. This password is the only public gate.
+	basic_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+	reverse_proxy backend:8000
+}

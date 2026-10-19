@@ -34,18 +34,21 @@ android {
             dimension = "device"
             isDefault = true
             buildConfigField("String", "BACKEND_URL", "\"http://10.0.2.2:8000\"")
+            buildConfigField("String", "BACKEND_USER", "\"\"")
+            buildConfigField("String", "BACKEND_PASSWORD", "\"\"")
         }
         create("phone") {
             dimension = "device"
-            val backendUrl = localBackendUrl() ?: "http://127.0.0.1:9"
-            buildConfigField("String", "BACKEND_URL", "\"$backendUrl\"")
+            buildConfigField("String", "BACKEND_URL", "\"https://formulatracker.duckdns.org\"")
+            buildConfigField("String", "BACKEND_USER", quoteBuildConfig(localProperty("backend.user")))
+            buildConfigField("String", "BACKEND_PASSWORD", quoteBuildConfig(localProperty("backend.password")))
         }
     }
     gradle.taskGraph.whenReady {
         val buildingPhone = allTasks.any { "Phone" in it.name }
-        if (buildingPhone && localBackendUrl() == null) {
+        if (buildingPhone && (localProperty("backend.user").isEmpty() || localProperty("backend.password").isEmpty())) {
             throw GradleException(
-                "Add backend.url=http://100.x.x.x:8000 to android/local.properties before building the phone variant.",
+                "Add backend.user and backend.password to android/local.properties before building the phone variant.",
             )
         }
     }
@@ -59,23 +62,20 @@ android {
     }
 }
 
-private fun localBackendUrl(): String? {
+private fun localProperty(name: String): String {
     val properties = Properties()
     val file = rootProject.file("local.properties")
     if (file.exists()) {
         file.inputStream().use { properties.load(it) }
     }
-    val url = properties.getProperty("backend.url")?.trim().orEmpty()
-    if (url.isEmpty()) {
-        return null
+    return properties.getProperty(name)?.trim().orEmpty()
+}
+
+private fun quoteBuildConfig(value: String): String {
+    if (value.any { it == '"' || it == '\\' || it == '\n' || it == '\r' }) {
+        throw GradleException("backend.user and backend.password cannot contain quotes, backslashes, or line breaks.")
     }
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        throw GradleException("backend.url must start with http:// or https://")
-    }
-    if (url.contains('"')) {
-        throw GradleException("backend.url cannot contain a quote.")
-    }
-    return url
+    return "\"$value\""
 }
 
 dependencies {
