@@ -90,12 +90,14 @@ private fun parseRaceRow(row: JSONObject): RaceRow {
     val driver = row.optJSONObject("driver")
     return RaceRow(
         positionText = row.optString("position_text"),
+        position = row.optionalInt("position"),
         code = driver?.optString("code").orEmpty(),
         team = row.optString("team"),
         status = row.optString("status").ifEmpty { null },
         classified = row.optBoolean("classified", false),
         time = row.optionalString("time"),
         points = if (row.has("points") && !row.isNull("points")) row.getDouble("points") else null,
+        laps = row.optionalInt("laps"),
         grid = row.optionalInt("grid"),
     )
 }

@@ -30,6 +30,8 @@ class ResultsJsonTest {
         assertEquals("Race", results.results.sessionName)
         assertEquals("1:23:06.801", winner.time)
         assertEquals(25.0, winner.points)
+        assertEquals(1, winner.position)
+        assertEquals(58, winner.laps)
         assertEquals(1, winner.grid)
         assertEquals("DID_NOT_START", dns.status)
         assertNull(dns.time)
@@ -134,10 +136,12 @@ class ResultsJsonTest {
               "results": [
                 {
                   "position_text": "1",
+                  "position": 1,
                   "classified": true,
                   "status": "FINISHED",
                   "time": "1:23:06.801",
                   "points": 25.0,
+                  "laps": 58,
                   "grid": 1,
                   "driver": {"code": "RUS"},
                   "team": "Mercedes"

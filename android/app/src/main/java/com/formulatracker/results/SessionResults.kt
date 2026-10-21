@@ -42,12 +42,14 @@ data class RaceResults(
 
 data class RaceRow(
     val positionText: String,
+    val position: Int?,
     val code: String,
     val team: String,
     val status: String?,
     val classified: Boolean,
     val time: String?,
     val points: Double?,
+    val laps: Int?,
     val grid: Int?,
 )
 
