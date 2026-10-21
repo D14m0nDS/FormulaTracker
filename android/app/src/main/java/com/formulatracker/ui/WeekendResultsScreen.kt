@@ -144,6 +144,7 @@ private fun QualifyingTable(
             photoUrl = photoUrls[row.code.uppercase()],
             photos = photos,
             teamColor = teamColor(teamColors, row.team),
+            team = row.team,
         )
     }
 }
@@ -166,6 +167,7 @@ private fun PracticeTable(
             photoUrl = photoUrls[row.code.uppercase()],
             photos = photos,
             teamColor = teamColor(teamColors, row.team),
+            team = row.team,
         )
     }
 }
@@ -193,6 +195,7 @@ private fun RaceTable(
             photoUrl = photoUrls[row.code.uppercase()],
             photos = photos,
             teamColor = teamColor(teamColors, row.team),
+            team = row.team,
         )
     }
 }
@@ -205,6 +208,7 @@ private fun ResultLine(
     photoUrl: String?,
     photos: DriverPhotos?,
     teamColor: String?,
+    team: String,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -213,7 +217,7 @@ private fun ResultLine(
         if (photos != null) {
             DriverPortrait(code = code, photoUrl = photoUrl, photos = photos)
         }
-        TeamColorMark(teamColor)
+        TeamColorMark(color = teamColor, team = team)
         Text(
             text = text,
             color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,

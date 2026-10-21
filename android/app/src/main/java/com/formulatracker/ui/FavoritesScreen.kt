@@ -28,6 +28,7 @@ import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.schedule.ScheduleSource
 import com.formulatracker.teams.singleTeamColor
+import com.formulatracker.teams.singleTeamName
 import com.formulatracker.teams.teamColor
 import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
@@ -129,7 +130,10 @@ private fun FavoriteLists(
                             photoUrl = photoUrls[driver.code.uppercase()],
                             photos = photos,
                         )
-                        TeamColorMark(singleTeamColor(teamColors, driver.teams))
+                        TeamColorMark(
+                            color = singleTeamColor(teamColors, driver.teams),
+                            team = singleTeamName(driver.teams),
+                        )
                     }
                 },
             ) {
@@ -151,7 +155,9 @@ private fun FavoriteLists(
             ChoiceRow(
                 constructor.team,
                 selected = favorite.matchesTeam(constructor.team),
-                portrait = { TeamColorMark(teamColor(teamColors, constructor.team)) },
+                portrait = {
+                    TeamColorMark(color = teamColor(teamColors, constructor.team), team = constructor.team)
+                },
             ) {
                 onFavorite(favorite.copy(team = constructor.team))
             }

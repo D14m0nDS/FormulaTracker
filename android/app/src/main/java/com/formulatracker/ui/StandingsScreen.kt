@@ -28,6 +28,7 @@ import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.schedule.ScheduleSource
 import com.formulatracker.teams.singleTeamColor
+import com.formulatracker.teams.singleTeamName
 import com.formulatracker.teams.teamColor
 import com.formulatracker.standings.ConstructorStanding
 import com.formulatracker.standings.DriverStanding
@@ -170,7 +171,10 @@ private fun StandingsList(
                             photos = photos,
                         )
                     }
-                    TeamColorMark(singleTeamColor(teamColors, row.teams))
+                    TeamColorMark(
+                        color = singleTeamColor(teamColors, row.teams),
+                        team = singleTeamName(row.teams),
+                    )
                     Text(
                         driverLine(row),
                         color = if (highlighted) {
@@ -190,7 +194,7 @@ private fun StandingsList(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    TeamColorMark(teamColor(teamColors, row.team))
+                    TeamColorMark(color = teamColor(teamColors, row.team), team = row.team)
                     Text(
                         constructorLine(row),
                         color = if (favorite.matchesTeam(row.team)) {
