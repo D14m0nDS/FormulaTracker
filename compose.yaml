@@ -4,6 +4,7 @@ services:
     # Loopback only, so the emulator can use 10.0.2.2:8000 and the internet cannot.
     ports:
       - "127.0.0.1:8000:8000"
+    restart: unless-stopped
 
   caddy:
     image: caddy:2-alpine
