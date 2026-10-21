@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -392,6 +393,7 @@ fun ScheduleContent(
                 }
             } else {
                 val highlight = weekendHighlight(state.schedule.events, Instant.now())
+                var openRounds by remember(state.schedule.season) { mutableStateOf(emptySet<Int>()) }
                 LazyColumn(
                     modifier = modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -404,6 +406,14 @@ fun ScheduleContent(
                         WeekendSection(
                             weekend,
                             mark = highlight?.takeIf { it.round == weekend.round }?.label,
+                            expanded = weekend.round in openRounds,
+                            onToggle = {
+                                openRounds = if (weekend.round in openRounds) {
+                                    openRounds - weekend.round
+                                } else {
+                                    openRounds + weekend.round
+                                }
+                            },
                             onClick = { onWeekend(weekend) },
                         )
                     }
@@ -421,7 +431,13 @@ private fun UpdatedLine(message: String?) {
 }
 
 @Composable
-private fun WeekendSection(weekend: RaceWeekend, mark: String?, onClick: () -> Unit) {
+private fun WeekendSection(
+    weekend: RaceWeekend,
+    mark: String?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onClick: () -> Unit,
+) {
     val highlighted = mark != null
     Card(
         onClick = onClick,
@@ -470,8 +486,30 @@ private fun WeekendSection(weekend: RaceWeekend, mark: String?, onClick: () -> U
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                weekend.sessions.forEach { session ->
-                    SessionRow(session)
+                val dates = weekendDateRange(
+                    weekend.sessions.map { it.start },
+                    ZoneId.systemDefault(),
+                )
+                if (dates != null) {
+                    Text(
+                        text = dates,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
+                if (expanded) {
+                    Spacer(Modifier.height(8.dp))
+                    weekend.sessions.forEach { session ->
+                        SessionRow(session)
+                    }
+                }
+                if (weekend.sessions.isNotEmpty()) {
+                    TextButton(
+                        onClick = onToggle,
+                        modifier = Modifier.align(Alignment.Start),
+                        contentPadding = PaddingValues(vertical = 4.dp),
+                    ) {
+                        Text(if (expanded) "Show less" else "Show more")
+                    }
                 }
             }
         }
@@ -481,18 +519,57 @@ private fun WeekendSection(weekend: RaceWeekend, mark: String?, onClick: () -> U
 @Composable
 private fun SessionRow(session: ScheduledSession) {
     val time = formatSessionStart(session.start, ZoneId.systemDefault(), Locale.getDefault())
-    val label = if (session.cancelled) "${session.name} · Cancelled" else session.name
-    Text(
-        text = "$label · $time",
-        style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier.padding(top = 8.dp),
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = shortSessionLabel(session.type, session.name),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = if (session.cancelled) "Cancelled" else time,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (session.cancelled) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+    }
+}
+
+internal fun shortSessionLabel(type: String, name: String): String {
+    return when (type) {
+        "FP1" -> "FP1"
+        "FP2" -> "FP2"
+        "FP3" -> "FP3"
+        "SQ" -> "SQ"
+        "SR" -> "Sprint"
+        "Q" -> "Q"
+        "R" -> "Race"
+        else -> name.ifBlank { type }
+    }
+}
+
+internal fun weekendDateRange(starts: List<Instant>, zone: ZoneId): String? {
+    if (starts.isEmpty()) return null
+    val days = starts.map { it.atZone(zone).toLocalDate() }
+    val first = days.min()
+    val last = days.max()
+    val pattern = if (first.year == last.year) "dd.MM" else "dd.MM.yyyy"
+    val formatter = DateTimeFormatter.ofPattern(pattern)
+    val startText = formatter.format(first)
+    if (first == last) return startText
+    return "$startText-${formatter.format(last)}"
 }
 
 internal fun formatSessionStart(start: Instant, zone: ZoneId, locale: Locale): String {
-    val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
-        .withLocale(locale)
-    return formatter.format(start.atZone(zone))
+    val local = start.atZone(zone)
+    val day = DateTimeFormatter.ofPattern("EEE", locale).format(local)
+    val clock = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).format(local)
+    return "$day $clock"
 }
 
 internal data class WeekendHighlight(val round: Int, val label: String)
