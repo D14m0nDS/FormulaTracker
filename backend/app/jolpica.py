@@ -133,6 +133,12 @@ class JolpicaClient:
             not_found=ProviderUnavailable("teams not found"),
         )
 
+    async def fetch_round_results(self, year: int, round_number: int) -> dict:
+        return await self._get_json(
+            f"/ergast/f1/{year}/{round_number}/results.json?limit={ERGAST_PAGE_SIZE}",
+            not_found=ProviderUnavailable("round results not found"),
+        )
+
     async def fetch_constructor_standings(self, year: int) -> dict:
         return await self._fetch_ergast_standings(
             f"/ergast/f1/{year}/constructorStandings.json",

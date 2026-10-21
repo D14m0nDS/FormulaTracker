@@ -27,8 +27,8 @@ import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.schedule.ScheduleSource
-import com.formulatracker.teams.singleTeamColor
-import com.formulatracker.teams.singleTeamName
+import com.formulatracker.teams.latestTeamColor
+import com.formulatracker.teams.latestTeamName
 import com.formulatracker.teams.teamColor
 import com.formulatracker.standings.ConstructorStanding
 import com.formulatracker.standings.DriverStanding
@@ -172,8 +172,8 @@ private fun StandingsList(
                         )
                     }
                     TeamColorMark(
-                        color = singleTeamColor(teamColors, row.teams),
-                        team = singleTeamName(row.teams),
+                        color = latestTeamColor(teamColors, row.teams),
+                        team = latestTeamName(row.teams),
                     )
                     Text(
                         driverLine(row),

@@ -7,7 +7,13 @@ from fastapi.testclient import TestClient
 
 from app.jolpica import JolpicaClient, ScheduleService
 from app.main import create_app
-from app.standings import StandingsPayloadError, StandingsService, normalize_standings
+from app.standings import (
+    StandingsPayloadError,
+    StandingsService,
+    latest_constructor_by_code,
+    normalize_standings,
+    with_latest_team_last,
+)
 
 FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "jolpica_standings_2026.json").read_text(encoding="utf-8")
@@ -60,6 +66,33 @@ def test_ineligible_driver_stays_last_with_a_dash():
     assert unranked.position_text == "-"
     assert unranked.points == 0
     assert unranked.teams == ["Spyker"]
+
+
+def test_a_return_to_an_earlier_team_is_listed_last():
+    payload = {
+        "MRData": {
+            "RaceTable": {
+                "Races": [
+                    {
+                        "Results": [
+                            {
+                                "Driver": {"code": "LAW"},
+                                "Constructor": {"name": "RB F1 Team"},
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+
+    assert latest_constructor_by_code(payload) == {"LAW": "RB F1 Team"}
+    assert with_latest_team_last(["RB F1 Team", "Red Bull"], "RB F1 Team") == [
+        "Red Bull",
+        "RB F1 Team",
+    ]
+    assert with_latest_team_last(["Red Bull"], "RB F1 Team") == ["Red Bull", "RB F1 Team"]
+    assert with_latest_team_last(["RB F1 Team", "Red Bull"], None) == ["RB F1 Team", "Red Bull"]
 
 
 def test_mismatched_standings_rounds_are_rejected():

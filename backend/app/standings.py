@@ -31,8 +31,31 @@ class StandingsService:
                 standings = normalize_standings(driver_payload, constructor_payload, season=year)
             except StandingsPayloadError as exc:
                 raise ProviderUnavailable("unexpected payload") from exc
+            standings = await self._prefer_latest_race_team(year, standings)
             self._cache[year] = (time.monotonic() + self._ttl_seconds, standings)
             return standings
+
+    async def _prefer_latest_race_team(self, year: int, standings: SeasonStandings) -> SeasonStandings:
+        # Jolpica lists every team a driver used, in the order they first joined.
+        # A driver who returns to an earlier team still has the other team last.
+        if standings.after_round is None:
+            return standings
+        try:
+            payload = await self._client.fetch_round_results(year, standings.after_round)
+        except ProviderUnavailable:
+            return standings
+        latest = latest_constructor_by_code(payload)
+        if not latest:
+            return standings
+        drivers = []
+        for driver in standings.drivers:
+            code = driver.driver.code.strip().upper()
+            drivers.append(
+                driver.model_copy(
+                    update={"teams": with_latest_team_last(driver.teams, latest.get(code))}
+                )
+            )
+        return standings.model_copy(update={"drivers": drivers})
 
     def _read_cache(self, year: int) -> SeasonStandings | None:
         item = self._cache.get(year)
@@ -100,6 +123,37 @@ def _table(payload: dict, row_key: str) -> tuple[int, int | None, list]:
     if round_number is None:
         round_number = _whole(table.get("round"))
     return season, round_number, rows
+
+
+def latest_constructor_by_code(payload: dict) -> dict[str, str]:
+    mrdata = payload.get("MRData")
+    table = mrdata.get("RaceTable") if isinstance(mrdata, dict) else None
+    races = table.get("Races") if isinstance(table, dict) else None
+    if not isinstance(races, list) or not races or not isinstance(races[0], dict):
+        return {}
+    results = races[0].get("Results")
+    if not isinstance(results, list):
+        return {}
+    found: dict[str, str] = {}
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        driver = result.get("Driver")
+        constructor = result.get("Constructor")
+        code = driver.get("code") if isinstance(driver, dict) else None
+        name = constructor.get("name") if isinstance(constructor, dict) else None
+        if isinstance(code, str) and code.strip() and isinstance(name, str) and name.strip():
+            found[code.strip().upper()] = name.strip()
+    return found
+
+
+def with_latest_team_last(teams: list[str], latest: str | None) -> list[str]:
+    if latest is None or not latest.strip():
+        return teams
+    match = next((team for team in teams if team.casefold() == latest.casefold()), None)
+    if match is None:
+        return [*teams, latest.strip()]
+    return [team for team in teams if team.casefold() != latest.casefold()] + [match]
 
 
 def _driver_row(row: object) -> DriverStanding:

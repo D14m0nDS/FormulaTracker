@@ -23,4 +23,11 @@ class TeamJsonTest {
         assertNull(teamColor(colors, "Mercedes"))
         assertNull(parseTeamColor("red"))
     }
+
+    @Test
+    fun theLastListedTeamIsTheLogo() {
+        assertEquals("RB F1 Team", latestTeamName(listOf("Red Bull", "RB F1 Team")))
+        assertEquals("Mercedes", latestTeamName(listOf("Mercedes")))
+        assertNull(latestTeamName(emptyList()))
+    }
 }

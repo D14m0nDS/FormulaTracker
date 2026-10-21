@@ -30,12 +30,13 @@ fun teamColor(colors: Map<String, String>, name: String): String? {
     return colors[name.trim().uppercase()]
 }
 
-fun singleTeamColor(colors: Map<String, String>, teams: List<String>): String? {
-    return teams.mapNotNull { teamColor(colors, it) }.distinct().singleOrNull()
+fun latestTeamName(teams: List<String>): String? {
+    return teams.map { it.trim() }.lastOrNull { it.isNotEmpty() }
 }
 
-fun singleTeamName(teams: List<String>): String? {
-    return teams.map { it.trim() }.filter { it.isNotEmpty() }.distinct().singleOrNull()
+fun latestTeamColor(colors: Map<String, String>, teams: List<String>): String? {
+    val name = latestTeamName(teams) ?: return null
+    return teamColor(colors, name)
 }
 
 private val COLOR = Regex("^#[0-9A-Fa-f]{6}$")

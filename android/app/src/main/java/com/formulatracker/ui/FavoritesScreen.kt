@@ -27,8 +27,8 @@ import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.schedule.ScheduleSource
-import com.formulatracker.teams.singleTeamColor
-import com.formulatracker.teams.singleTeamName
+import com.formulatracker.teams.latestTeamColor
+import com.formulatracker.teams.latestTeamName
 import com.formulatracker.teams.teamColor
 import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
@@ -131,8 +131,8 @@ private fun FavoriteLists(
                             photos = photos,
                         )
                         TeamColorMark(
-                            color = singleTeamColor(teamColors, driver.teams),
-                            team = singleTeamName(driver.teams),
+                            color = latestTeamColor(teamColors, driver.teams),
+                            team = latestTeamName(driver.teams),
                         )
                     }
                 },
