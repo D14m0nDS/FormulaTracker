@@ -13,12 +13,12 @@ class LocalArtTest {
         assertEquals("circuit_de_barcelona_catalunya", circuitArtKey("Circuit de Barcelona-Catalunya"))
         assertEquals("losail_international_circuit", circuitArtKey("Lusail International Circuit"))
         assertEquals("las_vegas_strip_street_circuit", circuitArtKey("Las Vegas Strip Street Circuit"))
+        assertEquals("madring", circuitArtKey("Madring"))
+        assertEquals("sepang_international_circuit", circuitArtKey("Sepang International Circuit"))
     }
 
     @Test
     fun missingAndUnrelatedCircuitsStayBlank() {
-        assertNull(circuitArtKey("Madring"))
-        assertNull(circuitArtKey("Sepang International Circuit"))
         assertNull(circuitArtKey("Las Vegas Street Circuit"))
     }
 
