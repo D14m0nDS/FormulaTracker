@@ -1,7 +1,6 @@
 package com.formulatracker.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,7 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteStore
@@ -385,16 +391,21 @@ fun ScheduleContent(
                     Text("No races on this calendar")
                 }
             } else {
+                val highlight = weekendHighlight(state.schedule.events, Instant.now())
                 LazyColumn(
                     modifier = modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     if (updatedMessage != null) {
                         item { UpdatedLine(updatedMessage) }
                     }
                     items(state.schedule.events, key = { it.round }) { weekend ->
-                        WeekendSection(weekend, onClick = { onWeekend(weekend) })
+                        WeekendSection(
+                            weekend,
+                            mark = highlight?.takeIf { it.round == weekend.round }?.label,
+                            onClick = { onWeekend(weekend) },
+                        )
                     }
                 }
             }
@@ -410,21 +421,59 @@ private fun UpdatedLine(message: String?) {
 }
 
 @Composable
-private fun WeekendSection(weekend: RaceWeekend, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier.clickable(onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+private fun WeekendSection(weekend: RaceWeekend, mark: String?, onClick: () -> Unit) {
+    val highlighted = mark != null
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+        border = BorderStroke(
+            width = if (highlighted) 2.dp else 1.dp,
+            color = if (highlighted) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        ),
     ) {
-        Text(
-            text = "Round ${weekend.round} · ${weekend.name}",
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
-            text = circuitLine(weekend),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        weekend.sessions.forEach { session ->
-            SessionRow(session)
+        Column {
+            val photo = circuitImageRes(weekend.circuitName)
+            if (photo != null) {
+                Image(
+                    painter = painterResource(photo),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(148.dp),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (mark != null) {
+                    Text(
+                        text = mark,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Text(
+                    text = "Round ${weekend.round} · ${weekend.name}",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = circuitLine(weekend),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                weekend.sessions.forEach { session ->
+                    SessionRow(session)
+                }
+            }
         }
     }
 }
@@ -444,6 +493,22 @@ internal fun formatSessionStart(start: Instant, zone: ZoneId, locale: Locale): S
     val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .withLocale(locale)
     return formatter.format(start.atZone(zone))
+}
+
+internal data class WeekendHighlight(val round: Int, val label: String)
+
+internal fun weekendHighlight(events: List<RaceWeekend>, now: Instant): WeekendHighlight? {
+    val current = events.firstOrNull { weekend ->
+        val starts = weekend.sessions.filter { !it.cancelled }.map { it.start }
+        starts.any { !it.isAfter(now) } && starts.any { it.isAfter(now) }
+    }
+    if (current != null) {
+        return WeekendHighlight(current.round, "This weekend")
+    }
+    val next = events.firstOrNull { weekend ->
+        weekend.sessions.any { !it.cancelled && it.start.isAfter(now) }
+    }
+    return next?.let { WeekendHighlight(it.round, "Next") }
 }
 
 private fun circuitLine(weekend: RaceWeekend): String {
