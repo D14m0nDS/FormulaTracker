@@ -1,6 +1,15 @@
 package com.formulatracker.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,23 +18,29 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,10 +50,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.formulatracker.ui.theme.tabular
 import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteStore
 import com.formulatracker.reminders.ReminderScheduleStore
@@ -176,121 +199,207 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         opened = Opened.None
     }
 
+    val section = opened.section()
+    val showYear = section == AppSection.Calendar || section == AppSection.Standings
+    val updatedMessage = if (seasonYear == currentYear) {
+        calendarUpdatedMessage(
+            savedAt,
+            Instant.now(),
+            ZoneId.systemDefault(),
+            Locale.getDefault(),
+        )
+    } else {
+        null
+    }
+    val barColors = TopAppBarDefaults.topAppBarColors(
+        containerColor = MaterialTheme.colorScheme.background,
+        titleContentColor = MaterialTheme.colorScheme.onBackground,
+    )
+
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                colors = barColors,
                 title = {
                     if (weekend != null) {
-                        Text(weekend.name)
-                    } else {
-                        SeasonYearBar(
-                            year = seasonYear,
-                            currentYear = currentYear,
-                            menuOpen = yearMenuOpen,
-                            onMenuOpen = { yearMenuOpen = true },
-                            onMenuDismiss = { yearMenuOpen = false },
-                            onYear = { seasonYear = it },
+                        Text(
+                            weekend.name,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
+                    } else {
+                        Text(section?.title ?: AppSection.Calendar.title)
                     }
                 },
                 navigationIcon = {
-                    when {
-                        weekend != null || opened != Opened.None -> {
-                            TextButton(onClick = { opened = Opened.None }) {
-                                Text("Calendar")
-                            }
-                        }
-                        else -> {
-                            TextButton(onClick = { opened = Opened.Reminders }) {
-                                Text("Reminders")
-                            }
-                        }
-                    }
-                },
-                actions = {
-                    if (opened == Opened.None) {
-                        TextButton(onClick = { opened = Opened.Favorites }) {
-                            Text("Favorites")
-                        }
-                        TextButton(onClick = { opened = Opened.Standings }) {
-                            Text("Standings")
+                    if (weekend != null) {
+                        TextButton(onClick = { opened = Opened.None }) {
+                            Icon(
+                                AppIcons.ChevronLeft,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text("Calendar")
                         }
                     }
                 },
             )
         },
-    ) { innerPadding ->
-        when {
-            weekend != null -> {
-                Column(modifier = Modifier.padding(innerPadding)) {
-                    WeekendResultsScreen(
-                        year = seasonYear,
-                        weekend = weekend,
-                        source = source,
-                        favorite = favorite,
-                        photoUrls = photoUrls,
-                        photos = driverPhotos,
-                        teamColors = teamColors,
-                    )
-                }
-            }
-            opened == Opened.Standings -> {
-                Column(modifier = Modifier.padding(innerPadding)) {
-                    StandingsScreen(
-                        year = seasonYear,
-                        source = source,
-                        favorite = favorite,
-                        photoUrls = photoUrls,
-                        photos = driverPhotos,
-                        teamColors = teamColors,
-                    )
-                }
-            }
-            opened == Opened.Favorites -> {
-                Column(modifier = Modifier.padding(innerPadding)) {
-                    FavoritesScreen(
-                        year = currentYear,
-                        source = source,
-                        favorite = favorite,
-                        photoUrls = photoUrls,
-                        photos = driverPhotos,
-                        teamColors = teamColors,
-                        onFavorite = { next ->
-                            favoriteStore.write(next)
-                            favorite = next
-                        },
-                    )
-                }
-            }
-            opened == Opened.Reminders -> {
-                Column(modifier = Modifier.padding(innerPadding)) {
-                    RemindersScreen(
-                        preferences = reminderPreferences,
-                        onPreferences = { next ->
-                            reminderSettings.write(next)
-                            reminderPreferences = next
-                        },
-                    )
-                }
-            }
-            else -> {
-                ScheduleContent(
-                    state = state,
-                    updatedMessage = if (seasonYear == currentYear) {
-                        calendarUpdatedMessage(
-                            savedAt,
-                            Instant.now(),
-                            ZoneId.systemDefault(),
-                            Locale.getDefault(),
-                        )
-                    } else {
-                        null
-                    },
-                    onRetry = { attempt += 1 },
-                    onWeekend = { opened = Opened.Weekend(it) },
-                    modifier = Modifier.padding(innerPadding),
+        bottomBar = {
+            if (section != null) {
+                AppNavigationBar(
+                    section = section,
+                    onSection = { opened = it.opened() },
                 )
             }
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize(),
+        ) {
+            AnimatedVisibility(visible = showYear) {
+                SeasonYearBar(
+                    year = seasonYear,
+                    currentYear = currentYear,
+                    menuOpen = yearMenuOpen,
+                    onMenuOpen = { yearMenuOpen = true },
+                    onMenuDismiss = { yearMenuOpen = false },
+                    onYear = { seasonYear = it },
+                )
+            }
+            AnimatedContent(
+                targetState = opened,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                transitionSpec = {
+                    fadeIn(tween(180)) togetherWith fadeOut(tween(120))
+                },
+                contentKey = { it.screenKey() },
+                label = "section",
+            ) { destination ->
+                val openedWeekend = (destination as? Opened.Weekend)?.weekend
+                when {
+                    openedWeekend != null -> {
+                        WeekendResultsScreen(
+                            year = seasonYear,
+                            weekend = openedWeekend,
+                            source = source,
+                            favorite = favorite,
+                            photoUrls = photoUrls,
+                            photos = driverPhotos,
+                            teamColors = teamColors,
+                        )
+                    }
+                    destination == Opened.Standings -> {
+                        StandingsScreen(
+                            year = seasonYear,
+                            source = source,
+                            favorite = favorite,
+                            photoUrls = photoUrls,
+                            photos = driverPhotos,
+                            teamColors = teamColors,
+                        )
+                    }
+                    destination == Opened.Favorites -> {
+                        FavoritesScreen(
+                            year = currentYear,
+                            source = source,
+                            favorite = favorite,
+                            photoUrls = photoUrls,
+                            photos = driverPhotos,
+                            teamColors = teamColors,
+                            onFavorite = { next ->
+                                favoriteStore.write(next)
+                                favorite = next
+                            },
+                        )
+                    }
+                    destination == Opened.Reminders -> {
+                        RemindersScreen(
+                            preferences = reminderPreferences,
+                            onPreferences = { next ->
+                                reminderSettings.write(next)
+                                reminderPreferences = next
+                            },
+                        )
+                    }
+                    else -> {
+                        ScheduleContent(
+                            state = state,
+                            updatedMessage = updatedMessage,
+                            onRetry = { attempt += 1 },
+                            onWeekend = { opened = Opened.Weekend(it) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private enum class AppSection(val title: String) {
+    Calendar("Calendar"),
+    Standings("Standings"),
+    Favorites("Favorites"),
+    Reminders("Reminders"),
+}
+
+private fun Opened.section(): AppSection? = when (this) {
+    Opened.None -> AppSection.Calendar
+    Opened.Standings -> AppSection.Standings
+    Opened.Favorites -> AppSection.Favorites
+    Opened.Reminders -> AppSection.Reminders
+    is Opened.Weekend -> null
+}
+
+private fun AppSection.opened(): Opened = when (this) {
+    AppSection.Calendar -> Opened.None
+    AppSection.Standings -> Opened.Standings
+    AppSection.Favorites -> Opened.Favorites
+    AppSection.Reminders -> Opened.Reminders
+}
+
+private fun Opened.screenKey(): String = when (this) {
+    Opened.None -> "calendar"
+    is Opened.Weekend -> "weekend-${weekend.round}"
+    Opened.Standings -> "standings"
+    Opened.Favorites -> "favorites"
+    Opened.Reminders -> "reminders"
+}
+
+@Composable
+private fun AppNavigationBar(section: AppSection, onSection: (AppSection) -> Unit) {
+    val colors = NavigationBarItemDefaults.colors(
+        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        AppSection.entries.forEach { item ->
+            NavigationBarItem(
+                selected = item == section,
+                onClick = { onSection(item) },
+                icon = {
+                    Icon(
+                        imageVector = when (item) {
+                            AppSection.Calendar -> AppIcons.Calendar
+                            AppSection.Standings -> AppIcons.Standings
+                            AppSection.Favorites -> AppIcons.Favorites
+                            AppSection.Reminders -> AppIcons.Reminders
+                        },
+                        contentDescription = null,
+                    )
+                },
+                label = { Text(item.title) },
+                alwaysShowLabel = true,
+                colors = colors,
+            )
         }
     }
 }
@@ -314,19 +423,21 @@ private fun SeasonYearBar(
 ) {
     val years = remember(currentYear) { seasonYears(currentYear) }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        TextButton(
+        IconButton(
             onClick = { onYear(year - 1) },
             enabled = year > FIRST_SEASON_YEAR,
         ) {
-            Text("‹", style = MaterialTheme.typography.headlineSmall)
+            Icon(AppIcons.ChevronLeft, contentDescription = "Previous season")
         }
         Box {
             TextButton(onClick = onMenuOpen) {
-                Text(year.toString(), style = MaterialTheme.typography.titleLarge)
+                Text(year.toString(), style = MaterialTheme.typography.titleLarge.tabular())
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = onMenuDismiss) {
                 years.forEach { option ->
@@ -334,6 +445,7 @@ private fun SeasonYearBar(
                         text = {
                             Text(
                                 option.toString(),
+                                fontWeight = if (option == year) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (option == year) {
                                     MaterialTheme.colorScheme.primary
                                 } else {
@@ -349,11 +461,11 @@ private fun SeasonYearBar(
                 }
             }
         }
-        TextButton(
+        IconButton(
             onClick = { onYear(year + 1) },
             enabled = year < currentYear,
         ) {
-            Text("›", style = MaterialTheme.typography.headlineSmall)
+            Icon(AppIcons.ChevronRight, contentDescription = "Next season")
         }
     }
 }
@@ -368,28 +480,32 @@ fun ScheduleContent(
 ) {
     when (state) {
         ScheduleUiState.Loading -> {
-            Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                UpdatedLine(updatedMessage)
-                Text("Loading schedule")
+            Column(modifier.fillMaxSize()) {
+                if (updatedMessage != null) {
+                    NoticeBanner(updatedMessage, Modifier.padding(16.dp))
+                }
+                StatusMessage(title = "Loading schedule", loading = true)
             }
         }
         is ScheduleUiState.Failed -> {
-            Column(
-                modifier = modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                UpdatedLine(updatedMessage)
-                Text(state.message)
-                Button(onClick = onRetry) {
-                    Text("Try again")
+            Column(modifier.fillMaxSize()) {
+                if (updatedMessage != null) {
+                    NoticeBanner(updatedMessage, Modifier.padding(16.dp))
                 }
+                StatusMessage(
+                    title = state.message,
+                    actionLabel = "Try again",
+                    onAction = onRetry,
+                )
             }
         }
         is ScheduleUiState.Ready -> {
             if (state.schedule.events.isEmpty()) {
-                Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    UpdatedLine(updatedMessage)
-                    Text("No races on this calendar")
+                Column(modifier.fillMaxSize()) {
+                    if (updatedMessage != null) {
+                        NoticeBanner(updatedMessage, Modifier.padding(16.dp))
+                    }
+                    StatusMessage(title = "No races on this calendar")
                 }
             } else {
                 val highlight = weekendHighlight(state.schedule.events, Instant.now())
@@ -397,10 +513,10 @@ fun ScheduleContent(
                 LazyColumn(
                     modifier = modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     if (updatedMessage != null) {
-                        item { UpdatedLine(updatedMessage) }
+                        item { NoticeBanner(updatedMessage) }
                     }
                     items(state.schedule.events, key = { it.round }) { weekend ->
                         WeekendSection(
@@ -424,13 +540,6 @@ fun ScheduleContent(
 }
 
 @Composable
-private fun UpdatedLine(message: String?) {
-    if (message != null) {
-        Text(message, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
 private fun WeekendSection(
     weekend: RaceWeekend,
     mark: String?,
@@ -439,22 +548,18 @@ private fun WeekendSection(
     onClick: () -> Unit,
 ) {
     val highlighted = mark != null
+    val chevron by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(180),
+        label = "sessions",
+    )
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        border = BorderStroke(
-            width = if (highlighted) 2.dp else 1.dp,
-            color = if (highlighted) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.outlineVariant
-            },
-        ),
+        colors = trackerCardColors(),
+        border = trackerCardBorder(highlighted),
     ) {
-        Column {
+        Column(modifier = Modifier.animateContentSize()) {
             val photo = circuitImageRes(weekend.circuitName)
             if (photo != null) {
                 Image(
@@ -462,53 +567,91 @@ private fun WeekendSection(
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(148.dp),
+                        .height(156.dp),
                     contentScale = ContentScale.Crop,
                 )
             }
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (mark != null) {
                     Text(
                         text = mark,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 }
-                Text(
-                    text = "Round ${weekend.round} · ${weekend.name}",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = circuitLine(weekend),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val dates = weekendDateRange(
-                    weekend.sessions.map { it.start },
-                    ZoneId.systemDefault(),
-                )
-                if (dates != null) {
-                    Text(
-                        text = dates,
-                        style = MaterialTheme.typography.titleSmall,
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = "Round ${weekend.round} · ${weekend.name}",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = circuitLine(weekend),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        val dates = weekendDateRange(
+                            weekend.sessions.map { it.start },
+                            ZoneId.systemDefault(),
+                        )
+                        if (dates != null) {
+                            Text(
+                                text = dates,
+                                style = MaterialTheme.typography.titleSmall.tabular(),
+                            )
+                        }
+                    }
+                    Icon(
+                        AppIcons.ChevronRight,
+                        contentDescription = "Open results",
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (expanded) {
-                    Spacer(Modifier.height(8.dp))
-                    weekend.sessions.forEach { session ->
-                        SessionRow(session)
+                AnimatedVisibility(visible = expanded) {
+                    Column(
+                        modifier = Modifier.padding(top = 8.dp, end = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        weekend.sessions.forEach { session ->
+                            SessionRow(session)
+                        }
                     }
                 }
                 if (weekend.sessions.isNotEmpty()) {
                     TextButton(
                         onClick = onToggle,
-                        modifier = Modifier.align(Alignment.Start),
-                        contentPadding = PaddingValues(vertical = 4.dp),
+                        modifier = Modifier
+                            .align(Alignment.Start)
+                            .heightIn(min = 48.dp)
+                            .semantics {
+                                stateDescription = if (expanded) "Expanded" else "Collapsed"
+                            },
                     ) {
                         Text(if (expanded) "Show less" else "Show more")
+                        Spacer(Modifier.size(4.dp))
+                        Icon(
+                            AppIcons.ChevronDown,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .rotate(chevron),
+                        )
                     }
                 }
             }
@@ -520,21 +663,30 @@ private fun WeekendSection(
 private fun SessionRow(session: ScheduledSession) {
     val time = formatSessionStart(session.start, ZoneId.systemDefault(), Locale.getDefault())
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 32.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = shortSessionLabel(session.type, session.name),
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.titleSmall,
+            textDecoration = if (session.cancelled) TextDecoration.LineThrough else null,
+            color = if (session.cancelled) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
         )
         Text(
             text = if (session.cancelled) "Cancelled" else time,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium.tabular(),
             color = if (session.cancelled) {
                 MaterialTheme.colorScheme.error
             } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+                MaterialTheme.colorScheme.onSurface
             },
         )
     }
@@ -588,7 +740,7 @@ internal fun weekendHighlight(events: List<RaceWeekend>, now: Instant): WeekendH
     return next?.let { WeekendHighlight(it.round, "Next") }
 }
 
-private fun circuitLine(weekend: RaceWeekend): String {
+internal fun circuitLine(weekend: RaceWeekend): String {
     val place = listOf(weekend.locality, weekend.country).filter { it.isNotEmpty() }.joinToString(", ")
     return when {
         weekend.circuitName.isEmpty() -> place
