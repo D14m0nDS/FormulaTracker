@@ -9,15 +9,19 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -32,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -102,20 +107,21 @@ fun RemindersScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
             "These follow the published start time. They do not confirm that a session has started.",
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (!notificationsAllowed) {
-            Text("Notifications are off, so reminders cannot appear.")
+            NoticeBanner("Notifications are off, so reminders cannot appear.", warning = true)
             TextButton(onClick = { openNotificationSettings(context) }) {
                 Text("Allow notifications")
             }
         }
         if (!exactAlarmsAllowed) {
-            Text("Exact alarms are off, so reminders may arrive late.")
+            NoticeBanner("Exact alarms are off, so reminders may arrive late.", warning = true)
             TextButton(
                 onClick = {
                     val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
@@ -127,107 +133,147 @@ fun RemindersScreen(
                 Text("Allow exact alarms")
             }
         }
-        Text("Sessions", style = MaterialTheme.typography.titleMedium)
-        REMINDER_SESSION_TYPES.forEach { sessionType ->
+        SettingsGroup(title = "Sessions") {
+            REMINDER_SESSION_TYPES.forEach { sessionType ->
+                ToggleRow(
+                    label = sessionType.label,
+                    checked = sessionType.type in preferences.enabledTypes,
+                    onChecked = { checked ->
+                        val enabled = if (checked) {
+                            preferences.enabledTypes + sessionType.type
+                        } else {
+                            preferences.enabledTypes - sessionType.type
+                        }
+                        onPreferences(preferences.copy(enabledTypes = enabled))
+                    },
+                )
+            }
+        }
+        SettingsGroup(title = "Race week") {
+            Text(
+                "Monday at 9:00 in this phone's local time, in the week that contains the race.",
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             ToggleRow(
-                label = sessionType.label,
-                checked = sessionType.type in preferences.enabledTypes,
-                onChecked = { checked ->
-                    val enabled = if (checked) {
-                        preferences.enabledTypes + sessionType.type
-                    } else {
-                        preferences.enabledTypes - sessionType.type
-                    }
-                    onPreferences(preferences.copy(enabledTypes = enabled))
-                },
+                label = "Monday at 9:00",
+                checked = preferences.raceWeek,
+                onChecked = { onPreferences(preferences.copy(raceWeek = it)) },
             )
         }
-        Text("Race week", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Monday at 9:00 in this phone's local time, in the week that contains the race.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        ToggleRow(
-            label = "Monday at 9:00",
-            checked = preferences.raceWeek,
-            onChecked = { onPreferences(preferences.copy(raceWeek = it)) },
-        )
-        Text("When", style = MaterialTheme.typography.titleMedium)
-        ToggleRow(
-            label = "Before the start",
-            checked = preferences.beforeStart,
-            onChecked = { onPreferences(preferences.copy(beforeStart = it)) },
-        )
-        ToggleRow(
-            label = "At the scheduled start",
-            checked = preferences.atStart,
-            onChecked = { onPreferences(preferences.copy(atStart = it)) },
-        )
-        LeadMinutesRow(
-            minutes = usableLeadMinutes(preferences.leadMinutes),
-            onMinutes = { onPreferences(preferences.copy(leadMinutes = it)) },
-        )
-        Button(
-            onClick = {
-                when {
-                    ReminderReceiver.missingNotificationPermission(context) -> {
-                        armTest = true
-                        if (Build.VERSION.SDK_INT >= 33) {
-                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        SettingsGroup(title = "When") {
+            ToggleRow(
+                label = "Before the start",
+                checked = preferences.beforeStart,
+                onChecked = { onPreferences(preferences.copy(beforeStart = it)) },
+            )
+            ToggleRow(
+                label = "At the scheduled start",
+                checked = preferences.atStart,
+                onChecked = { onPreferences(preferences.copy(atStart = it)) },
+            )
+            LeadMinutesRow(
+                minutes = usableLeadMinutes(preferences.leadMinutes),
+                onMinutes = { onPreferences(preferences.copy(leadMinutes = it)) },
+            )
+            Button(
+                onClick = {
+                    when {
+                        ReminderReceiver.missingNotificationPermission(context) -> {
+                            armTest = true
+                            if (Build.VERSION.SDK_INT >= 33) {
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }
+                        ReminderReceiver.notificationsTurnedOff(context) -> {
+                            openNotificationSettings(context)
+                        }
+                        else -> {
+                            scheduler.scheduleTest()
+                            testScheduled = true
                         }
                     }
-                    ReminderReceiver.notificationsTurnedOff(context) -> {
-                        openNotificationSettings(context)
-                    }
-                    else -> {
-                        scheduler.scheduleTest()
-                        testScheduled = true
-                    }
-                }
-            },
-        ) {
-            Text("Try a reminder")
+                },
+                modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+            ) {
+                Text("Try a reminder")
+            }
+            if (testScheduled) {
+                Text(
+                    "A reminder is scheduled for about a minute from now.",
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
-        if (testScheduled) {
-            Text("A reminder is scheduled for about a minute from now.")
-        }
-        Text("Session finished", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "One notice after the timing feed says the session has finished. It is separate from the scheduled reminders.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        ToggleRow(
-            label = "Session finished",
-            checked = preferences.sessionFinished,
-            onChecked = { onPreferences(preferences.copy(sessionFinished = it)) },
-        )
-        Text(
-            "This posts one sample. It does not mean a session has finished.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Button(
-            onClick = {
-                when {
-                    ReminderReceiver.missingNotificationPermission(context) -> {
-                        armFinishTest = true
-                        if (Build.VERSION.SDK_INT >= 33) {
-                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        SettingsGroup(title = "Session finished") {
+            Text(
+                "One notice after the timing feed says the session has finished. It is separate from the scheduled reminders.",
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ToggleRow(
+                label = "Session finished",
+                checked = preferences.sessionFinished,
+                onChecked = { onPreferences(preferences.copy(sessionFinished = it)) },
+            )
+            Text(
+                "This posts one sample. It does not mean a session has finished.",
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(
+                onClick = {
+                    when {
+                        ReminderReceiver.missingNotificationPermission(context) -> {
+                            armFinishTest = true
+                            if (Build.VERSION.SDK_INT >= 33) {
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }
+                        ReminderReceiver.notificationsTurnedOff(context) -> {
+                            openNotificationSettings(context)
+                        }
+                        else -> {
+                            showTestSessionFinish(context.applicationContext)
+                            finishShown = true
                         }
                     }
-                    ReminderReceiver.notificationsTurnedOff(context) -> {
-                        openNotificationSettings(context)
-                    }
-                    else -> {
-                        showTestSessionFinish(context.applicationContext)
-                        finishShown = true
-                    }
-                }
-            },
-        ) {
-            Text("Try a finished notice")
+                },
+                modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+            ) {
+                Text("Try a finished notice")
+            }
+            if (finishShown) {
+                Text(
+                    "A session-finished notice was shown.",
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
-        if (finishShown) {
-            Text("A session-finished notice was shown.")
+    }
+}
+
+@Composable
+private fun SettingsGroup(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = trackerCardColors(),
+            border = trackerCardBorder(),
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                content = content,
+            )
         }
     }
 }
@@ -246,16 +292,28 @@ private fun LeadMinutesRow(minutes: Int, onMinutes: (Int) -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(
+        FilledTonalButton(
             onClick = { onMinutes(steppedLeadMinutes(minutes, -LEAD_STEP_MINUTES)) },
             enabled = minutes > MIN_LEAD_MINUTES,
+            modifier = Modifier.heightIn(min = 48.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
         ) {
             Text("−")
         }
-        Text("$minutes minutes before", style = MaterialTheme.typography.bodyLarge)
-        TextButton(
+        Text(
+            "$minutes minutes before",
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 8.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        FilledTonalButton(
             onClick = { onMinutes(steppedLeadMinutes(minutes, LEAD_STEP_MINUTES)) },
             enabled = minutes < MAX_LEAD_MINUTES,
+            modifier = Modifier.heightIn(min = 48.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
         ) {
             Text("+")
         }
@@ -265,11 +323,19 @@ private fun LeadMinutesRow(minutes: Int, onMinutes: (Int) -> Unit) {
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(
+            label,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 12.dp),
+            style = MaterialTheme.typography.bodyLarge,
+        )
         Switch(checked = checked, onCheckedChange = onChecked)
     }
 }

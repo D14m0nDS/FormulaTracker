@@ -1,8 +1,6 @@
 package com.formulatracker.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,16 +9,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,14 +93,13 @@ fun FavoritesScreen(
     }
 
     when (val current = state) {
-        FavoritesLoad.Loading -> Text("Loading drivers and teams", modifier = Modifier.padding(16.dp))
+        FavoritesLoad.Loading -> StatusMessage(title = "Loading drivers and teams", loading = true)
         FavoritesLoad.Failed -> {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Couldn't load drivers and teams")
-                Button(onClick = { attempt += 1 }) {
-                    Text("Try again")
-                }
-            }
+            StatusMessage(
+                title = "Couldn't load drivers and teams",
+                actionLabel = "Try again",
+                onAction = { attempt += 1 },
+            )
         }
         is FavoritesLoad.Ready -> {
             FavoriteLists(current.standings, favorite, photoUrls, photos, teamColors, onFavorite)
@@ -120,9 +120,16 @@ private fun FavoriteLists(
         columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text(
+                "Optional. Matching rows are highlighted, and scheduled reminders use this name.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text("Driver", style = MaterialTheme.typography.titleMedium)
         }
@@ -181,17 +188,38 @@ private fun ChoiceRow(
     portrait: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.clickable(onClick = onClick).padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        border = trackerCardBorder(selected),
     ) {
-        portrait?.invoke()
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            portrait?.invoke()
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+            if (selected) {
+                Icon(
+                    AppIcons.Check,
+                    contentDescription = "Selected",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
     }
 }
 
@@ -213,49 +241,54 @@ private fun DriverChoiceCard(
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        border = BorderStroke(
-            width = if (selected) 2.dp else 1.dp,
-            color = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.outlineVariant
-            },
-        ),
+        colors = trackerCardColors(),
+        border = trackerCardBorder(selected),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            DriverPortrait(
-                code = driver.code.ifBlank { name },
-                photoUrl = photoUrl,
-                photos = photos,
-                size = 84.dp,
-            )
-            Text(
-                text = name,
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.titleMedium,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+        Box(modifier = Modifier.fillMaxWidth()) {
+            if (selected) {
+                Icon(
+                    AppIcons.Check,
+                    contentDescription = "Selected",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                CardStat(stats.place, Modifier.weight(0.7f))
-                CardStatDivider()
-                CardStat(stats.points, Modifier.weight(1.1f))
-                CardStatDivider()
-                CardStat(stats.team, Modifier.weight(1.2f))
+                DriverPortrait(
+                    code = driver.code.ifBlank { name },
+                    photoUrl = photoUrl,
+                    photos = photos,
+                    size = 84.dp,
+                )
+                Text(
+                    text = name,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CardStat(stats.place, Modifier.weight(0.7f))
+                    CardStatDivider()
+                    CardStat(stats.points, Modifier.weight(1.1f))
+                    CardStatDivider()
+                    CardStat(stats.team, Modifier.weight(1.2f))
+                }
             }
         }
     }

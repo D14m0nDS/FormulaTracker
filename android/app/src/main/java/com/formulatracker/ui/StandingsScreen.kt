@@ -5,13 +5,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,7 +25,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.formulatracker.ui.theme.tabular
 import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
@@ -95,18 +105,14 @@ fun StandingsScreen(
 
     when (val current = state) {
         StandingsUiState.Loading -> {
-            Text("Loading standings", modifier = Modifier.padding(16.dp))
+            StatusMessage(title = "Loading standings", loading = true)
         }
         is StandingsUiState.Failed -> {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(current.message)
-                Button(onClick = { attempt += 1 }) {
-                    Text("Try again")
-                }
-            }
+            StatusMessage(
+                title = current.message,
+                actionLabel = "Try again",
+                onAction = { attempt += 1 },
+            )
         }
         is StandingsUiState.Ready -> {
             StandingsList(
@@ -144,12 +150,20 @@ private fun StandingsList(
             )
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TableButton("Drivers", table == StandingsTable.Drivers) {
-                    onTable(StandingsTable.Drivers)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = table == StandingsTable.Drivers,
+                    onClick = { onTable(StandingsTable.Drivers) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) {
+                    Text("Drivers")
                 }
-                TableButton("Constructors", table == StandingsTable.Constructors) {
-                    onTable(StandingsTable.Constructors)
+                SegmentedButton(
+                    selected = table == StandingsTable.Constructors,
+                    onClick = { onTable(StandingsTable.Constructors) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) {
+                    Text("Constructors")
                 }
             }
         }
@@ -160,64 +174,120 @@ private fun StandingsList(
             itemsIndexed(standings.drivers, key = { index, _ -> "driver-$index" }) { _, row ->
                 val highlighted = favorite.matchesDriver(row.code, row.familyName) ||
                     row.teams.any { favorite.matchesTeam(it) }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (photos != null) {
-                        DriverPortrait(
-                            code = row.code.ifBlank { row.familyName },
-                            photoUrl = photoUrls[row.code.uppercase()],
-                            photos = photos,
+                StandingRow(
+                    position = row.positionText,
+                    title = row.code.ifEmpty { row.familyName },
+                    detail = row.teams.joinToString(", "),
+                    points = row.points,
+                    wins = row.wins,
+                    highlighted = highlighted,
+                    leading = {
+                        if (photos != null) {
+                            DriverPortrait(
+                                code = row.code.ifBlank { row.familyName },
+                                photoUrl = photoUrls[row.code.uppercase()],
+                                photos = photos,
+                            )
+                        }
+                    },
+                    mark = {
+                        TeamColorMark(
+                            color = latestTeamColor(teamColors, row.teams),
+                            team = latestTeamName(row.teams),
                         )
-                    }
-                    TeamColorMark(
-                        color = latestTeamColor(teamColors, row.teams),
-                        team = latestTeamName(row.teams),
-                    )
-                    Text(
-                        driverLine(row),
-                        color = if (highlighted) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    )
-                }
+                    },
+                )
             }
         } else {
             if (standings.constructors.isEmpty()) {
                 item { Text("No constructors in this table") }
             }
             itemsIndexed(standings.constructors, key = { index, _ -> "team-$index" }) { _, row ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TeamColorMark(color = teamColor(teamColors, row.team), team = row.team)
-                    Text(
-                        constructorLine(row),
-                        color = if (favorite.matchesTeam(row.team)) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    )
-                }
+                StandingRow(
+                    position = row.positionText,
+                    title = row.team,
+                    detail = "",
+                    points = row.points,
+                    wins = row.wins,
+                    highlighted = favorite.matchesTeam(row.team),
+                    leading = {},
+                    mark = {
+                        TeamColorMark(color = teamColor(teamColors, row.team), team = row.team)
+                    },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun TableButton(label: String, selected: Boolean, onClick: () -> Unit) {
-    if (selected) {
-        Button(onClick = onClick) {
-            Text(label)
-        }
+private fun StandingRow(
+    position: String,
+    title: String,
+    detail: String,
+    points: Double,
+    wins: Int,
+    highlighted: Boolean,
+    leading: @Composable () -> Unit,
+    mark: @Composable () -> Unit,
+) {
+    val nameColor = if (highlighted) {
+        MaterialTheme.colorScheme.primary
     } else {
-        TextButton(onClick = onClick) {
-            Text(label)
+        MaterialTheme.colorScheme.onSurface
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .semantics {
+                if (highlighted) stateDescription = "Favorite"
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = position.ifBlank { "—" },
+            modifier = Modifier.width(32.dp),
+            style = MaterialTheme.typography.titleSmall.tabular(),
+            fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Medium,
+            color = nameColor,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+        )
+        leading()
+        mark()
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Medium,
+                color = nameColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (detail.isNotBlank()) {
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = "${formatPoints(points)} pts",
+                style = MaterialTheme.typography.titleSmall.tabular(),
+                maxLines = 1,
+            )
+            Text(
+                text = "$wins wins",
+                style = MaterialTheme.typography.bodySmall.tabular(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
     }
 }

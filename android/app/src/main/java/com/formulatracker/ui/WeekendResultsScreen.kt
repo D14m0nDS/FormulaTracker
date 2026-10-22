@@ -1,6 +1,9 @@
 package com.formulatracker.ui
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -10,13 +13,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,11 +34,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.formulatracker.ui.theme.tabular
+import java.time.ZoneId
 import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
@@ -95,15 +106,31 @@ fun WeekendResultsScreen(
     }
 
     if (sessions.isEmpty()) {
-        Text("No results for this weekend", modifier = Modifier.padding(16.dp))
+        StatusMessage(title = "No results for this weekend")
         return
     }
 
+    val dates = weekendDateRange(weekend.sessions.map { it.start }, ZoneId.systemDefault())
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item(key = "weekend") {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = circuitLine(weekend),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (dates != null) {
+                    Text(
+                        text = dates,
+                        style = MaterialTheme.typography.titleSmall.tabular(),
+                    )
+                }
+            }
+        }
         items(sessions, key = { it.type }) { session ->
             ResultSection(
                 type = session.type,
@@ -128,26 +155,56 @@ private fun ResultSection(
     photos: DriverPhotos?,
     teamColors: Map<String, String>,
 ) {
+    val shortLabel = shortSessionLabel(type, title)
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = trackerCardColors(),
+        border = trackerCardBorder(),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(shortSessionLabel(type, title), style = MaterialTheme.typography.titleMedium)
-            when (state) {
-                ResultSectionState.Loading -> Text("Loading")
-                ResultSectionState.Missing -> Text("No results yet")
-                is ResultSectionState.Failed -> Text(state.message)
-                is ResultSectionState.Ready -> when (val results = state.results) {
-                    is SessionResults.Qualifying -> QualifyingTable(results.results, favorite, photoUrls, photos, teamColors)
-                    is SessionResults.Practice -> PracticeTable(results.results, favorite, photoUrls, photos, teamColors)
-                    is SessionResults.Race -> RaceTable(results.results, favorite, photoUrls, photos, teamColors)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(shortLabel, style = MaterialTheme.typography.titleMedium)
+                if (title.isNotBlank() && !title.equals(shortLabel, ignoreCase = true)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            AnimatedContent(
+                targetState = state,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                contentKey = { it::class },
+                label = shortLabel,
+            ) { current ->
+                when (current) {
+                    ResultSectionState.Loading -> Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Text("Loading", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    ResultSectionState.Missing -> Text(
+                        "No results yet",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    is ResultSectionState.Failed -> Text(current.message)
+                    is ResultSectionState.Ready -> when (val results = current.results) {
+                        is SessionResults.Qualifying -> QualifyingTable(results.results, favorite, photoUrls, photos, teamColors)
+                        is SessionResults.Practice -> PracticeTable(results.results, favorite, photoUrls, photos, teamColors)
+                        is SessionResults.Race -> RaceTable(results.results, favorite, photoUrls, photos, teamColors)
+                    }
                 }
             }
         }
@@ -265,15 +322,22 @@ private fun ResultLine(
     } else {
         MaterialTheme.colorScheme.onSurface
     }
+    val nameWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Medium
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .semantics {
+                if (highlighted) stateDescription = "Favorite"
+            },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = position.ifBlank { "—" },
             modifier = Modifier.width(28.dp),
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleSmall.tabular(),
+            fontWeight = nameWeight,
             color = nameColor,
             maxLines = 1,
             overflow = TextOverflow.Clip,
@@ -289,6 +353,7 @@ private fun ResultLine(
             Text(
                 text = code.ifBlank { "—" },
                 style = MaterialTheme.typography.titleSmall,
+                fontWeight = nameWeight,
                 color = nameColor,
                 maxLines = 1,
             )
@@ -304,7 +369,7 @@ private fun ResultLine(
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = headline,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.tabular(),
                     textAlign = TextAlign.End,
                     maxLines = 1,
                 )
@@ -329,8 +394,8 @@ private fun RaceClock(points: String?, time: String, places: Int?) {
     ) {
         Text(
             text = points.orEmpty(),
-            modifier = Modifier.width(92.dp),
-            style = MaterialTheme.typography.titleSmall.copy(
+            modifier = Modifier.width(76.dp),
+            style = MaterialTheme.typography.titleSmall.tabular().copy(
                 platformStyle = PlatformTextStyle(includeFontPadding = false),
             ),
             textAlign = TextAlign.End,
@@ -339,19 +404,29 @@ private fun RaceClock(points: String?, time: String, places: Int?) {
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = time,
-                style = MaterialTheme.typography.bodyMedium.copy(
+                style = MaterialTheme.typography.bodyMedium.tabular().copy(
                     lineHeight = 16.sp,
                     platformStyle = PlatformTextStyle(includeFontPadding = false),
                 ),
                 textAlign = TextAlign.End,
             )
             if (places != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                val placeLabel = when {
+                    places > 0 -> "Gained $places"
+                    places < 0 -> "Lost ${-places}"
+                    else -> "No places gained or lost"
+                }
+                Row(
+                    modifier = Modifier.clearAndSetSemantics {
+                        contentDescription = placeLabel
+                    },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     if (places == 0) PlacesDash() else PlacesTriangle(up = places > 0)
                     Text(
                         text = kotlin.math.abs(places).toString(),
                         modifier = Modifier.width(18.dp),
-                        style = MaterialTheme.typography.labelMedium.copy(
+                        style = MaterialTheme.typography.labelMedium.tabular().copy(
                             lineHeight = 12.sp,
                             platformStyle = PlatformTextStyle(includeFontPadding = false),
                         ),
