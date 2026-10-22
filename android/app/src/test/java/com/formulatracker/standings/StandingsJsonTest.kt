@@ -3,6 +3,7 @@ package com.formulatracker.standings
 import com.formulatracker.schedule.ScheduleParseException
 import com.formulatracker.ui.constructorLine
 import com.formulatracker.ui.driverLine
+import com.formulatracker.ui.driverStandingLine
 import com.formulatracker.ui.standingsStillLoading
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -25,6 +26,7 @@ class StandingsJsonTest {
             "2  RUS  12.5 pts  0 wins  Mercedes, Other",
             driverLine(standings.drivers[1]),
         )
+        assertEquals("2  12.5 pts", driverStandingLine(standings.drivers[1]))
         assertEquals(
             "1  Mercedes  578 pts  11 wins",
             constructorLine(standings.constructors.single()),

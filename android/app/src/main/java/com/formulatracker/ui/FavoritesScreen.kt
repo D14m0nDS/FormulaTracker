@@ -1,15 +1,21 @@
 package com.formulatracker.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -105,53 +111,53 @@ private fun FavoriteLists(
     teamColors: Map<String, String>,
     onFavorite: (FavoriteSelection) -> Unit,
 ) {
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { Text("Driver", style = MaterialTheme.typography.titleMedium) }
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text("Driver", style = MaterialTheme.typography.titleMedium)
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
             ChoiceRow("None", selected = favorite.driverCode.isEmpty() && favorite.driverName.isEmpty()) {
                 onFavorite(favorite.copy(driverCode = "", driverName = ""))
             }
         }
         itemsIndexed(standings.drivers, key = { index, _ -> "driver-$index" }) { _, driver ->
-            ChoiceRow(
-                label = driverChoiceLabel(driver),
+            val team = latestTeamName(driver.teams)
+            DriverChoiceCard(
+                driver = driver,
                 selected = favorite.matchesDriver(driver),
-                portrait = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        DriverPortrait(
-                            code = driver.code.ifBlank { driver.familyName },
-                            photoUrl = photoUrls[driver.code.uppercase()],
-                            photos = photos,
-                        )
-                        TeamColorMark(
-                            color = latestTeamColor(teamColors, driver.teams),
-                            team = latestTeamName(driver.teams),
-                        )
-                    }
+                photoUrl = photoUrls[driver.code.uppercase()],
+                photos = photos,
+                teamColor = latestTeamColor(teamColors, driver.teams),
+                team = team,
+                onClick = {
+                    onFavorite(
+                        favorite.copy(
+                            driverCode = driver.code,
+                            driverName = driver.familyName.ifBlank { driver.code },
+                        ),
+                    )
                 },
-            ) {
-                onFavorite(
-                    favorite.copy(
-                        driverCode = driver.code,
-                        driverName = driver.familyName.ifBlank { driver.code },
-                    ),
-                )
-            }
+            )
         }
-        item { Text("Team", style = MaterialTheme.typography.titleMedium) }
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text("Team", style = MaterialTheme.typography.titleMedium)
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
             ChoiceRow("None", selected = favorite.team.isEmpty()) {
                 onFavorite(favorite.copy(team = ""))
             }
         }
-        itemsIndexed(standings.constructors, key = { index, _ -> "team-$index" }) { _, constructor ->
+        itemsIndexed(
+            standings.constructors,
+            key = { index, _ -> "team-$index" },
+            span = { _, _ -> GridItemSpan(maxLineSpan) },
+        ) { _, constructor ->
             ChoiceRow(
                 constructor.team,
                 selected = favorite.matchesTeam(constructor.team),
@@ -190,8 +196,58 @@ private fun FavoriteSelection.matchesDriver(driver: DriverStanding): Boolean {
     return matchesDriver(driver.code, driver.familyName)
 }
 
-private fun driverChoiceLabel(driver: DriverStanding): String {
-    val name = driver.code.ifEmpty { driver.familyName }
-    val teams = driver.teams.filter { it.isNotEmpty() }.joinToString(", ")
-    return if (teams.isEmpty()) name else "$name  $teams"
+@Composable
+private fun DriverChoiceCard(
+    driver: DriverStanding,
+    selected: Boolean,
+    photoUrl: String?,
+    photos: DriverPhotos,
+    teamColor: String?,
+    team: String?,
+    onClick: () -> Unit,
+) {
+    val code = driver.code.ifBlank { driver.familyName }
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+        border = BorderStroke(
+            width = if (selected) 2.dp else 1.dp,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DriverPortrait(code = code, photoUrl = photoUrl, photos = photos)
+                TeamColorMark(color = teamColor, team = team)
+            }
+            Text(
+                text = code,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = driverStandingLine(driver),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+internal fun driverStandingLine(driver: DriverStanding): String {
+    val points = "${formatPoints(driver.points)} pts"
+    val place = driver.positionText.trim()
+    return if (place.isEmpty()) points else "$place  $points"
 }
