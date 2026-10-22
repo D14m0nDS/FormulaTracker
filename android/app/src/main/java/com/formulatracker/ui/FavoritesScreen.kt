@@ -1,14 +1,18 @@
 package com.formulatracker.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -27,13 +31,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
 import com.formulatracker.favorites.matchesTeam
 import com.formulatracker.schedule.ScheduleSource
-import com.formulatracker.teams.latestTeamColor
 import com.formulatracker.teams.latestTeamName
 import com.formulatracker.teams.teamColor
 import com.formulatracker.standings.DriverStanding
@@ -127,14 +132,12 @@ private fun FavoriteLists(
             }
         }
         itemsIndexed(standings.drivers, key = { index, _ -> "driver-$index" }) { _, driver ->
-            val team = latestTeamName(driver.teams)
             DriverChoiceCard(
                 driver = driver,
                 selected = favorite.matchesDriver(driver),
                 photoUrl = photoUrls[driver.code.uppercase()],
                 photos = photos,
-                teamColor = latestTeamColor(teamColors, driver.teams),
-                team = team,
+                team = latestTeamName(driver.teams),
                 onClick = {
                     onFavorite(
                         favorite.copy(
@@ -202,11 +205,11 @@ private fun DriverChoiceCard(
     selected: Boolean,
     photoUrl: String?,
     photos: DriverPhotos,
-    teamColor: String?,
     team: String?,
     onClick: () -> Unit,
 ) {
-    val code = driver.code.ifBlank { driver.familyName }
+    val stats = driverCardStats(driver, team)
+    val name = driver.familyName.ifBlank { driver.code }
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -223,31 +226,73 @@ private fun DriverChoiceCard(
         ),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                DriverPortrait(code = code, photoUrl = photoUrl, photos = photos)
-                TeamColorMark(color = teamColor, team = team)
-            }
+            DriverPortrait(
+                code = driver.code.ifBlank { name },
+                photoUrl = photoUrl,
+                photos = photos,
+                size = 84.dp,
+            )
             Text(
-                text = code,
+                text = name,
+                modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleMedium,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = driverStandingLine(driver),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CardStat(stats.place, Modifier.weight(0.7f))
+                CardStatDivider()
+                CardStat(stats.points, Modifier.weight(1.1f))
+                CardStatDivider()
+                CardStat(stats.team, Modifier.weight(1.2f))
+            }
         }
     }
 }
 
-internal fun driverStandingLine(driver: DriverStanding): String {
-    val points = "${formatPoints(driver.points)} pts"
-    val place = driver.positionText.trim()
-    return if (place.isEmpty()) points else "$place  $points"
+@Composable
+private fun CardStat(text: String, modifier: Modifier) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.labelMedium,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun CardStatDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(14.dp)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)),
+    )
+}
+
+internal data class DriverCardStats(
+    val place: String,
+    val points: String,
+    val team: String,
+)
+
+internal fun driverCardStats(driver: DriverStanding, team: String?): DriverCardStats {
+    return DriverCardStats(
+        place = driver.positionText.trim().ifEmpty { "—" },
+        points = "${formatPoints(driver.points)} pts",
+        team = team?.trim().orEmpty().ifEmpty { "—" },
+    )
 }

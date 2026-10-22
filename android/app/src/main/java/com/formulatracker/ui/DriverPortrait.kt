@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.formulatracker.drivers.DriverPhotos
 
@@ -28,6 +29,7 @@ fun DriverPortrait(
     photoUrl: String?,
     photos: DriverPhotos,
     modifier: Modifier = Modifier,
+    size: Dp = 36.dp,
 ) {
     val label = code.ifBlank { "?" }
     var image by remember(photoUrl) { mutableStateOf<ImageBitmap?>(null) }
@@ -36,7 +38,7 @@ fun DriverPortrait(
     }
     Box(
         modifier = modifier
-            .size(36.dp)
+            .size(size)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
@@ -50,7 +52,14 @@ fun DriverPortrait(
                 contentScale = ContentScale.Crop,
             )
         } else {
-            Text(label.take(3), style = MaterialTheme.typography.labelSmall)
+            Text(
+                label.take(3),
+                style = if (size < 64.dp) {
+                    MaterialTheme.typography.labelSmall
+                } else {
+                    MaterialTheme.typography.titleMedium
+                },
+            )
         }
     }
 }
