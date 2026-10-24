@@ -108,6 +108,19 @@ class DriverPhotosService:
         return drivers
 
 
+async def get_openf1_json(client: httpx.AsyncClient, path: str, params: dict) -> list | dict:
+    try:
+        response = await client.get(path, params=params)
+    except httpx.HTTPError as exc:
+        raise OpenF1Unavailable("provider request failed") from exc
+    if response.status_code != 200:
+        raise OpenF1Unavailable("provider request failed")
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise OpenF1Unavailable("unexpected payload") from exc
+
+
 def parse_openf1_time(value) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None

@@ -24,6 +24,7 @@ from app.models import (
     SessionResults,
 )
 from app.openf1 import OPENF1_BASE_URL, DriverPhotosService, OpenF1Unavailable
+from app.openf1_results import OpenF1ResultsService
 from app.results import ResultsService, RoundNotFound, SessionNotScheduled
 from app.session_finish import SessionFinishService
 from app.standings import StandingsService
@@ -42,11 +43,15 @@ def create_app(
     async def lifespan(app: FastAPI):
         if service is None:
             client = JolpicaClient()
+            openf1 = httpx.AsyncClient(base_url=OPENF1_BASE_URL, timeout=httpx.Timeout(10.0))
             app.state.schedules = ScheduleService(client)
-            app.state.results = ResultsService(app.state.schedules, client)
+            app.state.results = ResultsService(
+                app.state.schedules,
+                client,
+                fallback=OpenF1ResultsService(openf1),
+            )
             app.state.standings = StandingsService(client)
             app.state.teams = TeamColorsService(client)
-            openf1 = httpx.AsyncClient(base_url=OPENF1_BASE_URL, timeout=httpx.Timeout(10.0))
             app.state.drivers = DriverPhotosService(openf1)
             app.state.finishes = SessionFinishService(openf1, app.state.schedules)
             yield
