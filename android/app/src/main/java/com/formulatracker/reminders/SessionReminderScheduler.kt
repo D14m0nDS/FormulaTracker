@@ -21,6 +21,18 @@ class SessionReminderScheduler(private val context: Context) {
         for (reminder in planReminders(schedule, preferences, now, favorite = favorite)) {
             schedule(reminder)
         }
+        scheduleFinishChecks(schedule, preferences, now)
+    }
+
+    // Replaces only the finish checks, so a check that just ran can plan the next one
+    // without touching the reminders.
+    fun replaceFinishChecks(
+        schedule: SeasonSchedule,
+        preferences: ReminderPreferences,
+        now: Instant = Instant.now(),
+    ) {
+        clearFinishChecks()
+        scheduleFinishChecks(schedule, preferences, now)
     }
 
     fun clear() {
@@ -28,6 +40,14 @@ class SessionReminderScheduler(private val context: Context) {
         // A session that left the calendar must not keep the alarm from the previous pass.
         for (requestCode in seasonReminderRequestCodes() + raceWeekRequestCodes()) {
             alarmManager.cancel(pendingIntent(requestCode, title = null, text = null))
+        }
+        clearFinishChecks()
+    }
+
+    fun clearFinishChecks() {
+        val alarmManager = alarmManager() ?: return
+        for (requestCode in finishCheckRequestCodes()) {
+            alarmManager.cancel(finishCheckIntent(requestCode))
         }
     }
 
@@ -48,14 +68,38 @@ class SessionReminderScheduler(private val context: Context) {
     }
 
     private fun schedule(reminder: PlannedReminder) {
-        val alarmManager = alarmManager() ?: return
         val pending = pendingIntent(reminder.requestCode, reminder.title, reminder.text)
-        val triggerAt = reminder.triggerAt.toEpochMilli()
-        if (exactAlarmsAllowed()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
-        } else {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+        setAlarm(reminder.triggerAt, pending)
+    }
+
+    private fun scheduleFinishChecks(
+        schedule: SeasonSchedule,
+        preferences: ReminderPreferences,
+        now: Instant,
+    ) {
+        val notified = SessionFinishStore(context).read()
+        for (check in planFinishChecks(schedule, preferences, notified, now)) {
+            setAlarm(check.triggerAt, finishCheckIntent(check.requestCode))
         }
+    }
+
+    private fun setAlarm(triggerAt: Instant, pending: PendingIntent) {
+        val alarmManager = alarmManager() ?: return
+        val triggerAtMillis = triggerAt.toEpochMilli()
+        if (exactAlarmsAllowed()) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
+        } else {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
+        }
+    }
+
+    private fun finishCheckIntent(requestCode: Int): PendingIntent {
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            Intent(context, SessionFinishAlarmReceiver::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     private fun pendingIntent(requestCode: Int, title: String?, text: String?): PendingIntent {

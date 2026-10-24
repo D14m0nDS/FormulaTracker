@@ -32,6 +32,9 @@
             android:name=".reminders.ReminderReceiver"
             android:exported="false" />
         <receiver
+            android:name=".reminders.SessionFinishAlarmReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".reminders.ReminderBootReceiver"
             android:exported="true">
             <intent-filter>
