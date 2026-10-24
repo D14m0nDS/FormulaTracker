@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,7 +101,7 @@ fun StandingsScreen(
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<StandingsUiState>(StandingsUiState.Loading) }
-    var table by remember { mutableStateOf(StandingsTable.Drivers) }
+    var table by rememberSaveable { mutableStateOf(StandingsTable.Drivers) }
 
     LaunchedEffect(year, attempt) {
         state = StandingsUiState.Loading

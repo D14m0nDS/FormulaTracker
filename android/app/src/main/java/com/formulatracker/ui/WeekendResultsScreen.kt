@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -230,10 +231,12 @@ private fun WeekendSummary(weekend: RaceWeekend, modifier: Modifier = Modifier) 
     val dates = weekendDateRange(weekend.sessions.map { it.start }, ZoneId.systemDefault())
     if (photo != null) {
         val scrim = MaterialTheme.trackerColors.photoScrim
+        // Large text reaches the top of the photo, so it gets a light base scrim there.
+        val topScrim = if (LocalDensity.current.fontScale > 1.3f) scrim.copy(alpha = 0.4f) else Color.Transparent
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .height(112.dp)
+                .heightIn(min = 112.dp)
                 .clip(MaterialTheme.shapes.large),
         ) {
             Image(
@@ -247,8 +250,8 @@ private fun WeekendSummary(weekend: RaceWeekend, modifier: Modifier = Modifier) 
                     .matchParentSize()
                     .background(
                         Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            0.3f to Color.Transparent,
+                            0f to topScrim,
+                            0.3f to topScrim,
                             1f to scrim.copy(alpha = 0.85f),
                         ),
                     ),

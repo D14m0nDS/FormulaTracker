@@ -68,6 +68,9 @@ internal fun HeaderLabel(text: String, modifier: Modifier, align: TextAlign) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = align,
         maxLines = 1,
+        // At large font sizes "Pos" outgrows its narrow column; it may spill into the gap beside it.
+        softWrap = false,
+        overflow = TextOverflow.Visible,
     )
 }
 

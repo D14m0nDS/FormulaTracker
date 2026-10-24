@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -72,6 +73,7 @@ sealed interface ScheduleUiState {
 }
 
 private val HEADER_HEIGHT = 172.dp
+private val CHIP_CLEARANCE = 48.dp
 
 @Composable
 fun ScheduleContent(
@@ -265,7 +267,10 @@ private fun WeekendHeader(weekend: RaceWeekend, mark: String?) {
     val photo = circuitImageRes(weekend.circuitName)
     if (photo != null) {
         val scrim = MaterialTheme.trackerColors.photoScrim
-        Box(modifier = Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
+        // Large text fills most of the photo, so it gets a light base scrim at the top.
+        val topScrim = if (LocalDensity.current.fontScale > 1.3f) scrim.copy(alpha = 0.4f) else Color.Transparent
+        // A minimum height: larger text grows the photo instead of spilling above the scrim.
+        Box(modifier = Modifier.fillMaxWidth().heightIn(min = HEADER_HEIGHT)) {
             Image(
                 painter = painterResource(photo),
                 contentDescription = null,
@@ -277,8 +282,8 @@ private fun WeekendHeader(weekend: RaceWeekend, mark: String?) {
                     .matchParentSize()
                     .background(
                         Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            0.35f to Color.Transparent,
+                            0f to topScrim,
+                            0.35f to topScrim,
                             1f to scrim.copy(alpha = 0.88f),
                         ),
                     ),
@@ -296,7 +301,13 @@ private fun WeekendHeader(weekend: RaceWeekend, mark: String?) {
                 onPhoto = true,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(Spacing.lg),
+                    .padding(
+                        start = Spacing.lg,
+                        end = Spacing.lg,
+                        bottom = Spacing.lg,
+                        // Room for the chip once the text is tall enough to fill the photo.
+                        top = if (mark != null) CHIP_CLEARANCE else Spacing.lg,
+                    ),
             )
         }
     } else {

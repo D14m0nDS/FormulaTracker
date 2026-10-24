@@ -48,23 +48,29 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteStore
@@ -100,12 +106,12 @@ import java.util.Locale
 @Composable
 fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     val currentYear = remember { Year.now().value }
-    var seasonYear by remember { mutableIntStateOf(currentYear) }
+    var seasonYear by rememberSaveable { mutableIntStateOf(currentYear) }
     var seasonSheetOpen by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
     var loads by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<ScheduleUiState>(ScheduleUiState.Loading) }
-    var opened by remember { mutableStateOf<Opened>(Opened.None) }
+    var opened by rememberSaveable(stateSaver = OpenedSaver) { mutableStateOf<Opened>(Opened.None) }
     val appContext = LocalContext.current.applicationContext
     val reminderSettings = remember { ReminderSettings(appContext) }
     val reminderScheduleStore = remember { ReminderScheduleStore(appContext) }
@@ -119,8 +125,11 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     var reminderPreferences by remember { mutableStateOf(reminderSettings.read()) }
     var currentSeasonSchedule by remember { mutableStateOf<SeasonSchedule?>(null) }
     val calendarListState = rememberLazyListState()
-    var openRounds by remember(seasonYear) { mutableStateOf(emptySet<Int>()) }
-    var positionedSeason by remember { mutableIntStateOf(0) }
+    var openRounds by rememberSaveable(seasonYear, stateSaver = RoundSetSaver) {
+        mutableStateOf(emptySet<Int>())
+    }
+    // Saved too, so a recreated activity keeps its restored scroll position.
+    var positionedSeason by rememberSaveable { mutableIntStateOf(0) }
 
     LaunchedEffect(seasonYear, attempt, opened) {
         if (opened != Opened.None) {
@@ -467,26 +476,33 @@ private fun AppNavigationBar(section: AppSection, onSection: (AppSection) -> Uni
         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        AppSection.entries.forEach { item ->
-            NavigationBarItem(
-                selected = item == section,
-                onClick = { onSection(item) },
-                icon = {
-                    Icon(
-                        imageVector = when (item) {
-                            AppSection.Calendar -> AppIcons.Calendar
-                            AppSection.Standings -> AppIcons.Standings
-                            AppSection.Favorites -> AppIcons.Favorites
-                            AppSection.Reminders -> AppIcons.Reminders
-                        },
-                        contentDescription = null,
-                    )
-                },
-                label = { Text(item.title) },
-                alwaysShowLabel = true,
-                colors = colors,
-            )
+    // Four labels share the width, so past 1.3x they would break mid-word. The icon and the
+    // selected pill still identify each section at larger sizes.
+    val density = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(density.density, fontScale = density.fontScale.coerceAtMost(1.3f)),
+    ) {
+        NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+            AppSection.entries.forEach { item ->
+                NavigationBarItem(
+                    selected = item == section,
+                    onClick = { onSection(item) },
+                    icon = {
+                        Icon(
+                            imageVector = when (item) {
+                                AppSection.Calendar -> AppIcons.Calendar
+                                AppSection.Standings -> AppIcons.Standings
+                                AppSection.Favorites -> AppIcons.Favorites
+                                AppSection.Reminders -> AppIcons.Reminders
+                            },
+                            contentDescription = null,
+                        )
+                    },
+                    label = { Text(item.title, maxLines = 1) },
+                    alwaysShowLabel = true,
+                    colors = colors,
+                )
+            }
         }
     }
 }
@@ -498,6 +514,17 @@ private sealed interface Opened {
     data object Reminders : Opened
     data object Favorites : Opened
 }
+
+// An open weekend is not restored because RaceWeekend is not parcelable; it falls back to the calendar.
+private val OpenedSaver = Saver<Opened, String>(
+    save = { (it.section() ?: AppSection.Calendar).name },
+    restore = { AppSection.valueOf(it).opened() },
+)
+
+private val RoundSetSaver = listSaver<Set<Int>, Int>(
+    save = { it.toList() },
+    restore = { it.toSet() },
+)
 
 @Composable
 private fun SeasonSwitcher(

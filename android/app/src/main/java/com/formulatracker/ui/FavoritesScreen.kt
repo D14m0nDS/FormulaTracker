@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
@@ -403,15 +404,26 @@ private fun DriverChoiceCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    CardStat(stats.place, Modifier.weight(0.7f))
-                    CardStatDivider()
-                    CardStat(stats.points, Modifier.weight(1.1f))
-                    CardStatDivider()
-                    CardStat(stats.team, Modifier.weight(1.2f))
+                    if (LocalDensity.current.fontScale > 1.3f) {
+                        // Position and points no longer fit side by side in half the screen.
+                        CardStat(stats.place, Modifier.fillMaxWidth())
+                        CardStat(stats.points, Modifier.fillMaxWidth())
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CardStat(stats.place, Modifier.weight(0.7f))
+                            CardStatDivider()
+                            CardStat(stats.points, Modifier.weight(1.1f))
+                        }
+                    }
+                    // Own line, so team names such as "Aston Martin" are not cut off.
+                    CardStat(stats.team, Modifier.fillMaxWidth(), maxLines = 2)
                 }
             }
         }
@@ -419,13 +431,13 @@ private fun DriverChoiceCard(
 }
 
 @Composable
-private fun CardStat(text: String, modifier: Modifier) {
+private fun CardStat(text: String, modifier: Modifier, maxLines: Int = 1) {
     Text(
         text = text,
         modifier = modifier.padding(horizontal = 3.dp),
         style = MaterialTheme.typography.labelMedium,
         textAlign = TextAlign.Center,
-        maxLines = 1,
+        maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
     )
 }
