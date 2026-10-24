@@ -1,17 +1,9 @@
 package com.formulatracker.ui
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -25,6 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -38,10 +33,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +64,7 @@ import com.formulatracker.ui.theme.tabular
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 
 internal const val STANDINGS_GIVE_UP_MILLIS = 8_000L
 private const val STANDINGS_RETRY_PAUSE_MILLIS = 1_000L
@@ -101,7 +99,8 @@ fun StandingsScreen(
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<StandingsUiState>(StandingsUiState.Loading) }
-    var table by rememberSaveable { mutableStateOf(StandingsTable.Drivers) }
+    // Held here, above the loading states, so a season change keeps the table the user was on.
+    val pagerState = rememberPagerState { StandingsTable.entries.size }
 
     LaunchedEffect(year, attempt) {
         state = StandingsUiState.Loading
@@ -142,12 +141,11 @@ fun StandingsScreen(
         is StandingsUiState.Ready -> {
             StandingsList(
                 standings = current.standings,
-                table = table,
+                pagerState = pagerState,
                 favorite = favorite,
                 photoUrls = photoUrls,
                 photos = photos,
                 teamColors = teamColors,
-                onTable = { table = it },
             )
         }
     }
@@ -156,47 +154,68 @@ fun StandingsScreen(
 @Composable
 private fun StandingsList(
     standings: SeasonStandings,
-    table: StandingsTable,
+    pagerState: PagerState,
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos?,
     teamColors: Map<String, String>,
-    onTable: (StandingsTable) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
-    ) {
-        item(key = "heading") {
-            SectionLabel(text = standings.afterRound?.let { "After round $it" } ?: "Championship")
-        }
-        item(key = "switch") {
-            TableSwitch(table = table, onTable = onTable)
-        }
-        item(key = "table") {
-            AnimatedContent(
-                targetState = table,
-                transitionSpec = {
-                    val shift = if (targetState.ordinal >= initialState.ordinal) 1 else -1
-                    ((fadeIn(tween(200, 60)) +
-                        slideInHorizontally(tween(240, 60, FastOutSlowInEasing)) { it / 12 * shift }) togetherWith
-                        (fadeOut(tween(90)) + slideOutHorizontally(tween(160)) { -it / 12 * shift })) using
-                        SizeTransform(clip = false)
-                },
-                label = "standings table",
-            ) { shown ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = trackerCardColors(),
-                    border = trackerCardBorder(),
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    var headerHeight by remember { mutableIntStateOf(0) }
+    // The control follows the pager, so it flips as soon as a swipe passes halfway.
+    val table = StandingsTable.entries[pagerState.currentPage]
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // The pager is at least as tall as the space under the header (three gaps of Spacing.md:
+        // top, between, bottom), so a swipe also works beside a short table or message.
+        val fillHeight = (maxHeight - with(density) { headerHeight.toDp() } - Spacing.md * 3)
+            .coerceAtLeast(0.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            // No horizontal padding here: the pager runs edge to edge so a swiped table slides
+            // off the screen, not under an invisible margin. The header adds its own.
+            contentPadding = PaddingValues(vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            item(key = "header") {
+                Column(
+                    modifier = Modifier
+                        .onSizeChanged { headerHeight = it.height }
+                        .padding(horizontal = Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
-                    when (shown) {
-                        StandingsTable.Drivers -> {
-                            DriversTable(standings, favorite, photoUrls, photos, teamColors)
-                        }
-                        StandingsTable.Constructors -> {
-                            ConstructorsTable(standings, favorite, teamColors)
+                    SectionLabel(text = standings.afterRound?.let { "After round $it" } ?: "Championship")
+                    TableSwitch(
+                        table = table,
+                        onTable = { target ->
+                            scope.launch { pagerState.animateScrollToPage(target.ordinal) }
+                        },
+                    )
+                }
+            }
+            item(key = "table") {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = fillHeight),
+                    contentPadding = PaddingValues(horizontal = Spacing.lg),
+                    pageSpacing = Spacing.lg,
+                    verticalAlignment = Alignment.Top,
+                    key = { StandingsTable.entries[it] },
+                ) { page ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = trackerCardColors(),
+                        border = trackerCardBorder(),
+                    ) {
+                        when (StandingsTable.entries[page]) {
+                            StandingsTable.Drivers -> {
+                                DriversTable(standings, favorite, photoUrls, photos, teamColors)
+                            }
+                            StandingsTable.Constructors -> {
+                                ConstructorsTable(standings, favorite, teamColors)
+                            }
                         }
                     }
                 }
@@ -206,12 +225,16 @@ private fun StandingsList(
 }
 
 @Composable
-private fun TableSwitch(table: StandingsTable, onTable: (StandingsTable) -> Unit) {
+private fun TableSwitch(
+    table: StandingsTable,
+    onTable: (StandingsTable) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = SegmentedButtonDefaults.colors(
         activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
         activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     )
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
         SegmentedButton(
             selected = table == StandingsTable.Drivers,
             onClick = { onTable(StandingsTable.Drivers) },

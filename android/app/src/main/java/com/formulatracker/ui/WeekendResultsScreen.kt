@@ -1,13 +1,8 @@
 package com.formulatracker.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -30,6 +25,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +52,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -90,6 +89,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
@@ -122,9 +122,13 @@ fun WeekendResultsScreen(
         mutableStateOf(sessions.associate { it.type to ResultSectionState.Loading as ResultSectionState })
     }
     var reload by remember(weekend) { mutableIntStateOf(0) }
-    var selectedType by remember(weekend) {
-        mutableStateOf(defaultResultType(sessions, Instant.now()))
-    }
+    val pagerState = rememberPagerState(
+        initialPage = remember(sessions) {
+            sessions.indexOfFirst { it.type == defaultResultType(sessions, Instant.now()) }.coerceAtLeast(0)
+        },
+        pageCount = { sessions.size },
+    )
+    val pagerScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
     LaunchedEffect(year, weekend.round, reload) {
@@ -156,61 +160,74 @@ fun WeekendResultsScreen(
         return
     }
 
-    val current = sessions.firstOrNull { it.type == selectedType } ?: sessions.first()
+    val current = sessions[pagerState.currentPage.coerceIn(0, sessions.lastIndex)]
     val tabbed = sessions.size > 1
-    LaunchedEffect(current.type) {
-        // Keep the tab row pinned and the new session's first row right below it.
+    LaunchedEffect(pagerState.settledPage) {
+        // Keep the tab row pinned and the new session's first row right below it. This waits
+        // for the swipe to settle so the list does not jump while the finger is still down.
         if (tabbed && listState.firstVisibleItemIndex >= 1) {
             listState.scrollToItem(1)
         }
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = Spacing.xl),
-    ) {
-        item(key = "weekend") {
-            WeekendSummary(
-                weekend = weekend,
-                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
-            )
-        }
-        if (tabbed) {
-            stickyHeader(key = "sessions") {
-                SessionTabs(
-                    sessions = sessions,
-                    selected = current.type,
-                    onSelect = { selectedType = it },
-                )
+    val density = LocalDensity.current
+    var summaryHeight by remember { mutableIntStateOf(0) }
+    var tabsHeight by remember { mutableIntStateOf(0) }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // The pager is at least as tall as the space left under the summary and tabs, so a swipe
+        // also works on the empty part of a short page such as "No results yet".
+        val fillHeight = (maxHeight - with(density) { (summaryHeight + tabsHeight).toDp() } - Spacing.xl)
+            .coerceAtLeast(0.dp)
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = Spacing.xl),
+        ) {
+            item(key = "weekend") {
+                Box(modifier = Modifier.onSizeChanged { summaryHeight = it.height }) {
+                    WeekendSummary(
+                        weekend = weekend,
+                        modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                    )
+                }
             }
-        }
-        item(key = "results") {
-            AnimatedContent(
-                targetState = current.type,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                transitionSpec = {
-                    val order = sessions.map { it.type }
-                    val shift = if (order.indexOf(targetState) >= order.indexOf(initialState)) 1 else -1
-                    ((fadeIn(tween(200, 60)) +
-                        slideInHorizontally(tween(240, 60, FastOutSlowInEasing)) { it / 12 * shift }) togetherWith
-                        (fadeOut(tween(90)) + slideOutHorizontally(tween(160)) { -it / 12 * shift })) using
-                        SizeTransform(clip = false)
-                },
-                label = "session",
-            ) { type ->
-                val session = sessions.first { it.type == type }
-                ResultSection(
-                    session = session,
-                    state = sections[type] ?: ResultSectionState.Loading,
-                    favorite = favorite,
-                    photoUrls = photoUrls,
-                    photos = photos,
-                    teamColors = teamColors,
-                    onRetry = { reload += 1 },
-                )
+            if (tabbed) {
+                stickyHeader(key = "sessions") {
+                    SessionTabs(
+                        sessions = sessions,
+                        selected = current.type,
+                        onSelect = { type ->
+                            val page = sessions.indexOfFirst { it.type == type }
+                            pagerScope.launch { pagerState.animateScrollToPage(page) }
+                        },
+                        modifier = Modifier.onSizeChanged { tabsHeight = it.height },
+                    )
+                }
+            }
+            item(key = "results") {
+                // Edge to edge, so a swiped session slides off the screen instead of under a margin.
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = fillHeight)
+                        .padding(vertical = Spacing.md),
+                    contentPadding = PaddingValues(horizontal = Spacing.lg),
+                    pageSpacing = Spacing.lg,
+                    verticalAlignment = Alignment.Top,
+                    key = { sessions[it].type },
+                ) { page ->
+                    val session = sessions[page]
+                    ResultSection(
+                        session = session,
+                        state = sections[session.type] ?: ResultSectionState.Loading,
+                        favorite = favorite,
+                        photoUrls = photoUrls,
+                        photos = photos,
+                        teamColors = teamColors,
+                        onRetry = { reload += 1 },
+                    )
+                }
             }
         }
     }
@@ -303,10 +320,11 @@ private fun SessionTabs(
     sessions: List<ScheduledSession>,
     selected: String,
     onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val selectedIndex = sessions.indexOfFirst { it.type == selected }.coerceAtLeast(0)
     BoxWithConstraints(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background),
     ) {
