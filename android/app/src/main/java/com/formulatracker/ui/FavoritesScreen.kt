@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,8 +43,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -65,6 +65,7 @@ import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
 import com.formulatracker.ui.theme.Sizes
 import com.formulatracker.ui.theme.Spacing
+import com.formulatracker.ui.theme.numeric
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -375,6 +376,16 @@ private fun DriverChoiceCard(
         interactionSource = interactions,
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
+            // The position sits in the corner like the Standings table, so it never has to share
+            // a line with the points.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .clearAndSetSemantics { contentDescription = "Position ${stats.place}" },
+            ) {
+                PositionMark(stats.place)
+            }
             SelectedBadge(
                 selected = selected,
                 modifier = Modifier
@@ -384,7 +395,8 @@ private fun DriverChoiceCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = Spacing.md),
+                    // The extra top padding keeps the portrait clear of the position badge.
+                    .padding(start = 10.dp, end = 10.dp, top = Spacing.lg, bottom = Spacing.md),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
@@ -406,50 +418,29 @@ private fun DriverChoiceCard(
                 )
                 Column(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    if (LocalDensity.current.fontScale > 1.3f) {
-                        // Position and points no longer fit side by side in half the screen.
-                        CardStat(stats.place, Modifier.fillMaxWidth())
-                        CardStat(stats.points, Modifier.fillMaxWidth())
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            CardStat(stats.place, Modifier.weight(0.7f))
-                            CardStatDivider()
-                            CardStat(stats.points, Modifier.weight(1.1f))
-                        }
-                    }
+                    Text(
+                        text = stats.points,
+                        style = MaterialTheme.typography.titleSmall.numeric(),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                    )
                     // Own line, so team names such as "Aston Martin" are not cut off.
-                    CardStat(stats.team, Modifier.fillMaxWidth(), maxLines = 2)
+                    Text(
+                        text = stats.team,
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
     }
-}
-
-@Composable
-private fun CardStat(text: String, modifier: Modifier, maxLines: Int = 1) {
-    Text(
-        text = text,
-        modifier = modifier.padding(horizontal = 3.dp),
-        style = MaterialTheme.typography.labelMedium,
-        textAlign = TextAlign.Center,
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-@Composable
-private fun CardStatDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(14.dp)
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)),
-    )
 }
 
 internal data class DriverCardStats(
