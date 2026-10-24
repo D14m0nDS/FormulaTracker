@@ -72,7 +72,9 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import com.formulatracker.drivers.DriverPhotoStore
 import com.formulatracker.drivers.DriverPhotos
+import com.formulatracker.drivers.choosePhotoUrls
 import com.formulatracker.favorites.FavoriteStore
 import com.formulatracker.reminders.ReminderScheduleStore
 import com.formulatracker.reminders.ReminderSettings
@@ -120,6 +122,7 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
     var favorite by remember { mutableStateOf(favoriteStore.read()) }
     val reminderScheduler = remember { SessionReminderScheduler(appContext) }
     val driverPhotos = remember { DriverPhotos(File(appContext.cacheDir, "driver-photos")) }
+    val photoStore = remember { DriverPhotoStore(appContext) }
     var photoUrls by remember { mutableStateOf<Map<String, String?>>(emptyMap()) }
     var teamColors by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var reminderPreferences by remember { mutableStateOf(reminderSettings.read()) }
@@ -213,14 +216,19 @@ fun ScheduleScreen(source: ScheduleSource = HttpScheduleSource()) {
         if (!photosWanted) {
             return@LaunchedEffect
         }
-        photoUrls = try {
-            source.fetchDrivers(photoYear).drivers.associate { driver ->
-                driver.code.uppercase() to driver.photoUrl
-            }
+        val fetched = try {
+            source.fetchDrivers(photoYear)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
-            emptyMap()
+            null
+        }
+        photoUrls = withContext(Dispatchers.IO) {
+            val choice = choosePhotoUrls(fetched, photoStore.read(photoYear))
+            if (choice.save) {
+                photoStore.write(photoYear, choice.urls)
+            }
+            choice.urls
         }
         teamColors = try {
             source.fetchTeams(photoYear).teams.associate { team ->
