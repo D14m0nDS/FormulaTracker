@@ -98,7 +98,6 @@ private val RESULT_TYPES = setOf("FP1", "FP2", "FP3", "SQ", "SR", "Q", "R")
 
 private val TIME_COLUMN_WIDTH = 92.dp
 private val POINTS_COLUMN_WIDTH = 64.dp
-private val POSITION_COLUMN_WIDTH = 32.dp
 
 sealed interface ResultSectionState {
     data object Loading : ResultSectionState
@@ -418,28 +417,6 @@ private fun ResultSection(
 }
 
 @Composable
-private fun CardMessage(text: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.lg)
-            .padding(top = Spacing.xs, bottom = Spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (actionLabel != null && onAction != null) {
-            TextButton(onClick = onAction, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
-                Text(actionLabel)
-            }
-        }
-    }
-}
-
-@Composable
 private fun QualifyingTable(
     results: QualifyingResults,
     favorite: FavoriteSelection,
@@ -527,23 +504,6 @@ private fun RaceTable(
 }
 
 @Composable
-private fun <T> DividedColumn(items: List<T>, row: @Composable (T) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        items.forEachIndexed { index, item ->
-            if (index > 0) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = Spacing.lg),
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                )
-            }
-            row(item)
-        }
-        Spacer(Modifier.height(Spacing.xs))
-    }
-}
-
-@Composable
 private fun ResultsHeader(hasPortrait: Boolean, right: @Composable RowScope.() -> Unit) {
     Row(
         modifier = Modifier
@@ -563,18 +523,6 @@ private fun ResultsHeader(hasPortrait: Boolean, right: @Composable RowScope.() -
 }
 
 @Composable
-private fun HeaderLabel(text: String, modifier: Modifier, align: TextAlign) {
-    Text(
-        text = text.uppercase(),
-        modifier = modifier,
-        style = MaterialTheme.typography.labelSmall.overline(),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = align,
-        maxLines = 1,
-    )
-}
-
-@Composable
 private fun ResultLine(
     position: String,
     code: String,
@@ -590,15 +538,10 @@ private fun ResultLine(
     } else {
         MaterialTheme.colorScheme.onSurface
     }
-    val background = if (highlighted) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-    } else {
-        Color.Transparent
-    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(background)
+            .background(favoriteTint(highlighted))
             .padding(horizontal = Spacing.lg, vertical = 6.dp)
             .heightIn(min = 52.dp)
             .semantics(mergeDescendants = true) {
@@ -634,32 +577,6 @@ private fun ResultLine(
             TeamColorMark(color = teamColor, team = team)
         }
         right()
-    }
-}
-
-@Composable
-private fun PositionMark(position: String) {
-    val colors = MaterialTheme.trackerColors
-    val podium = when (position.trim()) {
-        "1" -> colors.firstPlace
-        "2" -> colors.secondPlace
-        "3" -> colors.thirdPlace
-        else -> null
-    }
-    Box(
-        modifier = Modifier
-            .size(POSITION_COLUMN_WIDTH)
-            .clip(RoundedCornerShape(9.dp))
-            .background(podium ?: Color.Transparent),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = position.ifBlank { "—" },
-            style = MaterialTheme.typography.titleMedium.numeric(),
-            color = if (podium != null) colors.onPodium else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Clip,
-        )
     }
 }
 
