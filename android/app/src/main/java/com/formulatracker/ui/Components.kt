@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -174,7 +175,11 @@ internal fun NoticeBanner(
                     color = content,
                 )
                 if (actionLabel != null && onAction != null) {
-                    TextButton(onClick = onAction, modifier = Modifier.height(Sizes.touchTarget)) {
+                    TextButton(
+                        onClick = onAction,
+                        modifier = Modifier.height(Sizes.touchTarget),
+                        colors = ButtonDefaults.textButtonColors(contentColor = content),
+                    ) {
                         Text(actionLabel, fontWeight = FontWeight.SemiBold)
                     }
                 }
