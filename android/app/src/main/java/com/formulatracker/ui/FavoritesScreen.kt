@@ -1,6 +1,16 @@
 package com.formulatracker.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +27,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,6 +43,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,12 +62,16 @@ import com.formulatracker.teams.latestTeamName
 import com.formulatracker.teams.teamColor
 import com.formulatracker.standings.DriverStanding
 import com.formulatracker.standings.SeasonStandings
+import com.formulatracker.ui.theme.Sizes
+import com.formulatracker.ui.theme.Spacing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 
 private const val FAVORITES_GIVE_UP_MILLIS = 8_000L
 private const val FAVORITES_RETRY_PAUSE_MILLIS = 1_000L
+
+private val TEAM_LOGO_SLOT_WIDTH = 52.dp
 
 private sealed interface FavoritesLoad {
     data object Loading : FavoritesLoad
@@ -97,6 +119,7 @@ fun FavoritesScreen(
         FavoritesLoad.Failed -> {
             StatusMessage(
                 title = "Couldn't load drivers and teams",
+                icon = AppIcons.Warning,
                 actionLabel = "Try again",
                 onAction = { attempt += 1 },
             )
@@ -116,12 +139,13 @@ private fun FavoriteLists(
     teamColors: Map<String, String>,
     onFavorite: (FavoriteSelection) -> Unit,
 ) {
+    val noDriver = favorite.driverCode.isEmpty() && favorite.driverName.isEmpty()
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
@@ -131,10 +155,14 @@ private fun FavoriteLists(
             )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Text("Driver", style = MaterialTheme.typography.titleMedium)
+            ChoiceHeader(
+                title = "Driver",
+                choice = favorite.driverName.ifBlank { favorite.driverCode }.ifBlank { "None" },
+                chosen = !noDriver,
+            )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
-            ChoiceRow("None", selected = favorite.driverCode.isEmpty() && favorite.driverName.isEmpty()) {
+            ChoiceRow("None", selected = noDriver) {
                 onFavorite(favorite.copy(driverCode = "", driverName = ""))
             }
         }
@@ -156,7 +184,12 @@ private fun FavoriteLists(
             )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Text("Team", style = MaterialTheme.typography.titleMedium)
+            ChoiceHeader(
+                title = "Team",
+                choice = favorite.team.ifBlank { "None" },
+                chosen = favorite.team.isNotEmpty(),
+                modifier = Modifier.padding(top = Spacing.md),
+            )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             ChoiceRow("None", selected = favorite.team.isEmpty()) {
@@ -171,7 +204,7 @@ private fun FavoriteLists(
             ChoiceRow(
                 constructor.team,
                 selected = favorite.matchesTeam(constructor.team),
-                portrait = {
+                leading = {
                     TeamColorMark(color = teamColor(teamColors, constructor.team), team = constructor.team)
                 },
             ) {
@@ -182,28 +215,122 @@ private fun FavoriteLists(
 }
 
 @Composable
+private fun ChoiceHeader(title: String, choice: String, chosen: Boolean, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Text(
+            text = choice,
+            modifier = Modifier
+                .weight(1f)
+                .padding(bottom = 2.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private class ChoiceStyle(val container: Color, val border: BorderStroke)
+
+@Composable
+private fun choiceStyle(selected: Boolean): ChoiceStyle {
+    val colors = MaterialTheme.colorScheme
+    val container by animateColorAsState(
+        targetValue = if (selected) colors.primaryContainer.copy(alpha = 0.4f) else colors.surfaceContainerLowest,
+        animationSpec = tween(160),
+        label = "choiceContainer",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) colors.primary else colors.outlineVariant,
+        animationSpec = tween(160),
+        label = "choiceBorder",
+    )
+    val borderWidth by animateDpAsState(
+        targetValue = if (selected) 2.dp else 1.dp,
+        animationSpec = tween(160),
+        label = "choiceBorderWidth",
+    )
+    return ChoiceStyle(container, BorderStroke(borderWidth, borderColor))
+}
+
+@Composable
+private fun SelectedBadge(selected: Boolean, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible = selected,
+        modifier = modifier,
+        enter = fadeIn(tween(120)) + scaleIn(tween(160), initialScale = 0.6f),
+        exit = fadeOut(tween(90)) + scaleOut(tween(90), targetScale = 0.6f),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .background(MaterialTheme.colorScheme.primary, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                AppIcons.Check,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onPrimary,
+            )
+        }
+    }
+}
+
+@Composable
 private fun ChoiceRow(
     label: String,
     selected: Boolean,
-    portrait: (@Composable () -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
+    val style = choiceStyle(selected)
+    val interactions = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(interactions)
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+            },
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        border = trackerCardBorder(selected),
+        color = style.container,
+        border = style.border,
+        interactionSource = interactions,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .heightIn(min = 56.dp)
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            portrait?.invoke()
+            Box(modifier = Modifier.width(TEAM_LOGO_SLOT_WIDTH), contentAlignment = Alignment.Center) {
+                if (leading != null) {
+                    leading()
+                } else {
+                    Icon(
+                        AppIcons.Minus,
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizes.iconSmall),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             Text(
                 text = label,
                 modifier = Modifier.weight(1f),
@@ -211,14 +338,7 @@ private fun ChoiceRow(
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
-            if (selected) {
-                Icon(
-                    AppIcons.Check,
-                    contentDescription = "Selected",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
+            SelectedBadge(selected)
         }
     }
 }
@@ -238,42 +358,46 @@ private fun DriverChoiceCard(
 ) {
     val stats = driverCardStats(driver, team)
     val name = driver.familyName.ifBlank { driver.code }
+    val style = choiceStyle(selected)
+    val interactions = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = trackerCardColors(),
-        border = trackerCardBorder(selected),
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(interactions)
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+            },
+        colors = CardDefaults.cardColors(containerColor = style.container),
+        border = style.border,
+        interactionSource = interactions,
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
-            if (selected) {
-                Icon(
-                    AppIcons.Check,
-                    contentDescription = "Selected",
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
+            SelectedBadge(
+                selected = selected,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(Spacing.sm),
+            )
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                    .padding(horizontal = 10.dp, vertical = Spacing.md),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 DriverPortrait(
                     code = driver.code.ifBlank { name },
                     photoUrl = photoUrl,
                     photos = photos,
-                    size = 84.dp,
+                    size = Sizes.portraitLarge,
                 )
                 Text(
                     text = name,
                     modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
                     color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
@@ -298,7 +422,7 @@ private fun DriverChoiceCard(
 private fun CardStat(text: String, modifier: Modifier) {
     Text(
         text = text,
-        modifier = modifier,
+        modifier = modifier.padding(horizontal = 3.dp),
         style = MaterialTheme.typography.labelMedium,
         textAlign = TextAlign.Center,
         maxLines = 1,
