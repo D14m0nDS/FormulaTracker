@@ -7,6 +7,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.dp
 
 private val lightScheme = lightColorScheme(
@@ -100,11 +101,14 @@ fun FormulaTrackerTheme(
 ) {
     // Wallpaper colors would replace this palette on Android 12+.
     val colorScheme = if (darkTheme) darkScheme else lightScheme
+    val trackerColors = if (darkTheme) darkTrackerColors else lightTrackerColors
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = AppTypography,
-        shapes = AppShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalTrackerColors provides trackerColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = AppTypography,
+            shapes = AppShapes,
+            content = content,
+        )
+    }
 }

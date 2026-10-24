@@ -105,7 +105,7 @@ fun StandingsScreen(
 
     when (val current = state) {
         StandingsUiState.Loading -> {
-            StatusMessage(title = "Loading standings", loading = true)
+            SkeletonList(rows = 10, label = "Loading standings")
         }
         is StandingsUiState.Failed -> {
             StatusMessage(

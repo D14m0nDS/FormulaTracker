@@ -1,20 +1,34 @@
 package com.formulatracker.ui.theme
 
+import android.graphics.Typeface
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+// The system condensed sans ships with Android, so titles and timing figures get a
+// motorsport feel without bundling a font file.
+private val Condensed = FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD))
+
 val AppTypography = Typography(
+    headlineMedium = TextStyle(
+        fontFamily = Condensed,
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp,
+        lineHeight = 38.sp,
+    ),
     headlineSmall = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
+        fontFamily = Condensed,
+        fontWeight = FontWeight.Bold,
+        fontSize = 26.sp,
         lineHeight = 32.sp,
     ),
     titleLarge = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
+        fontFamily = Condensed,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
     ),
     titleMedium = TextStyle(
         fontWeight = FontWeight.SemiBold,
@@ -23,7 +37,7 @@ val AppTypography = Typography(
         letterSpacing = 0.1.sp,
     ),
     titleSmall = TextStyle(
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp,
@@ -67,3 +81,18 @@ val AppTypography = Typography(
 )
 
 fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
+
+// Condensed bold with fixed-width digits, for positions, points, and timing columns.
+fun TextStyle.numeric(): TextStyle = copy(
+    fontFamily = Condensed,
+    fontWeight = FontWeight.Bold,
+    fontFeatureSettings = "tnum",
+)
+
+// Small caps-style label that sits above a title.
+fun TextStyle.overline(): TextStyle = copy(
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 11.sp,
+    lineHeight = 14.sp,
+    letterSpacing = 1.sp,
+)

@@ -93,7 +93,7 @@ fun FavoritesScreen(
     }
 
     when (val current = state) {
-        FavoritesLoad.Loading -> StatusMessage(title = "Loading drivers and teams", loading = true)
+        FavoritesLoad.Loading -> SkeletonList(rows = 8, label = "Loading drivers and teams")
         FavoritesLoad.Failed -> {
             StatusMessage(
                 title = "Couldn't load drivers and teams",

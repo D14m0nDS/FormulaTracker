@@ -102,6 +102,70 @@ internal object AppIcons {
             lineTo(19.5f, 6.5f)
         }
     }
+
+    val ArrowBack: ImageVector = icon("ArrowBack") {
+        stroke(2f) {
+            moveTo(19.5f, 12f)
+            lineTo(4.5f, 12f)
+            moveTo(11f, 5.5f)
+            lineTo(4.5f, 12f)
+            lineTo(11f, 18.5f)
+        }
+    }
+
+    val Minus: ImageVector = icon("Minus") {
+        stroke(2f) {
+            moveTo(6f, 12f)
+            lineTo(18f, 12f)
+        }
+    }
+
+    val Plus: ImageVector = icon("Plus") {
+        stroke(2f) {
+            moveTo(6f, 12f)
+            lineTo(18f, 12f)
+            moveTo(12f, 6f)
+            lineTo(12f, 18f)
+        }
+    }
+
+    val Info: ImageVector = icon("Info") {
+        stroke(1.75f) {
+            moveTo(12f, 3.5f)
+            arcTo(8.5f, 8.5f, 0f, true, true, 12f, 20.5f)
+            arcTo(8.5f, 8.5f, 0f, true, true, 12f, 3.5f)
+            close()
+            moveTo(12f, 11f)
+            lineTo(12f, 16.5f)
+            moveTo(12f, 7.9f)
+            lineTo(12f, 8f)
+        }
+    }
+
+    val Warning: ImageVector = icon("Warning") {
+        stroke(1.75f) {
+            moveTo(12f, 4f)
+            lineTo(21f, 19.5f)
+            lineTo(3f, 19.5f)
+            close()
+            moveTo(12f, 10f)
+            lineTo(12f, 14.5f)
+            moveTo(12f, 17f)
+            lineTo(12f, 17.1f)
+        }
+    }
+
+    val Flag: ImageVector = icon("Flag") {
+        stroke(1.75f) {
+            moveTo(5.5f, 20f)
+            lineTo(5.5f, 4f)
+            moveTo(5.5f, 5f)
+            lineTo(18.5f, 5f)
+            lineTo(15.5f, 9f)
+            lineTo(18.5f, 13f)
+            lineTo(5.5f, 13f)
+        }
+    }
 }
 
 private fun icon(name: String, block: ImageVector.Builder.() -> Unit): ImageVector {
