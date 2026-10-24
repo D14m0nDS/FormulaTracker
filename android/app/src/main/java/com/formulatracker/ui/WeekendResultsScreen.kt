@@ -1,39 +1,60 @@
 package com.formulatracker.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -44,8 +65,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.formulatracker.ui.theme.tabular
-import java.time.ZoneId
 import com.formulatracker.drivers.DriverPhotos
 import com.formulatracker.favorites.FavoriteSelection
 import com.formulatracker.favorites.matchesDriver
@@ -59,14 +78,27 @@ import com.formulatracker.results.SegmentTime
 import com.formulatracker.results.SessionResults
 import com.formulatracker.schedule.RaceWeekend
 import com.formulatracker.schedule.ScheduleSource
+import com.formulatracker.schedule.ScheduledSession
 import com.formulatracker.teams.teamColor
+import com.formulatracker.ui.theme.Sizes
+import com.formulatracker.ui.theme.Spacing
+import com.formulatracker.ui.theme.numeric
+import com.formulatracker.ui.theme.overline
+import com.formulatracker.ui.theme.trackerColors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
+import java.util.Locale
 
 private val RESULT_TYPES = setOf("FP1", "FP2", "FP3", "SQ", "SR", "Q", "R")
+
+private val TIME_COLUMN_WIDTH = 92.dp
+private val POINTS_COLUMN_WIDTH = 64.dp
+private val POSITION_COLUMN_WIDTH = 32.dp
 
 sealed interface ResultSectionState {
     data object Loading : ResultSectionState
@@ -89,93 +121,263 @@ fun WeekendResultsScreen(
     var sections by remember(weekend) {
         mutableStateOf(sessions.associate { it.type to ResultSectionState.Loading as ResultSectionState })
     }
+    var reload by remember(weekend) { mutableIntStateOf(0) }
+    var selectedType by remember(weekend) {
+        mutableStateOf(defaultResultType(sessions, Instant.now()))
+    }
+    val listState = rememberLazyListState()
 
-    LaunchedEffect(year, weekend.round) {
-        if (sessions.isEmpty()) {
+    LaunchedEffect(year, weekend.round, reload) {
+        // The first run loads everything. A retry only asks again for sessions that failed.
+        val pending = sessions.filter { session ->
+            val state = sections[session.type]
+            state == null || state is ResultSectionState.Loading || state is ResultSectionState.Failed
+        }
+        if (pending.isEmpty()) {
             return@LaunchedEffect
         }
-        sections = withContext(Dispatchers.IO) {
+        if (reload > 0) {
+            sections = sections + pending.associate { it.type to ResultSectionState.Loading }
+        }
+        val loaded = withContext(Dispatchers.IO) {
             coroutineScope {
-                sessions.map { session ->
+                pending.map { session ->
                     async {
                         session.type to loadSection(source, year, weekend.round, session.type)
                     }
                 }.awaitAll().toMap()
             }
         }
+        sections = sections + loaded
     }
 
     if (sessions.isEmpty()) {
-        StatusMessage(title = "No results for this weekend")
+        StatusMessage(title = "No results for this weekend", icon = AppIcons.Flag)
         return
     }
 
-    val dates = weekendDateRange(weekend.sessions.map { it.start }, ZoneId.systemDefault())
+    val current = sessions.firstOrNull { it.type == selectedType } ?: sessions.first()
+    val tabbed = sessions.size > 1
+    LaunchedEffect(current.type) {
+        // Keep the tab row pinned and the new session's first row right below it.
+        if (tabbed && listState.firstVisibleItemIndex >= 1) {
+            listState.scrollToItem(1)
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = Spacing.xl),
     ) {
         item(key = "weekend") {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = circuitLine(weekend),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            WeekendSummary(
+                weekend = weekend,
+                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            )
+        }
+        if (tabbed) {
+            stickyHeader(key = "sessions") {
+                SessionTabs(
+                    sessions = sessions,
+                    selected = current.type,
+                    onSelect = { selectedType = it },
                 )
-                if (dates != null) {
-                    Text(
-                        text = dates,
-                        style = MaterialTheme.typography.titleSmall.tabular(),
-                    )
-                }
             }
         }
-        items(sessions, key = { it.type }) { session ->
-            ResultSection(
-                type = session.type,
-                title = session.name,
-                state = sections[session.type] ?: ResultSectionState.Loading,
-                favorite = favorite,
-                photoUrls = photoUrls,
-                photos = photos,
-                teamColors = teamColors,
+        item(key = "results") {
+            AnimatedContent(
+                targetState = current.type,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                transitionSpec = {
+                    val order = sessions.map { it.type }
+                    val shift = if (order.indexOf(targetState) >= order.indexOf(initialState)) 1 else -1
+                    ((fadeIn(tween(200, 60)) +
+                        slideInHorizontally(tween(240, 60, FastOutSlowInEasing)) { it / 12 * shift }) togetherWith
+                        (fadeOut(tween(90)) + slideOutHorizontally(tween(160)) { -it / 12 * shift })) using
+                        SizeTransform(clip = false)
+                },
+                label = "session",
+            ) { type ->
+                val session = sessions.first { it.type == type }
+                ResultSection(
+                    session = session,
+                    state = sections[type] ?: ResultSectionState.Loading,
+                    favorite = favorite,
+                    photoUrls = photoUrls,
+                    photos = photos,
+                    teamColors = teamColors,
+                    onRetry = { reload += 1 },
+                )
+            }
+        }
+    }
+}
+
+// Opens on the latest session that has already started, so a finished weekend lands on
+// the race and a live one on whatever has just run. A weekend that has not begun starts
+// on its first session.
+internal fun defaultResultType(sessions: List<ScheduledSession>, now: Instant): String? {
+    val started = sessions.filter { !it.cancelled && !it.start.isAfter(now) }
+    return (started.maxByOrNull { it.start } ?: sessions.firstOrNull())?.type
+}
+
+@Composable
+private fun WeekendSummary(weekend: RaceWeekend, modifier: Modifier = Modifier) {
+    val photo = circuitImageRes(weekend.circuitName)
+    val place = circuitLine(weekend)
+    val dates = weekendDateRange(weekend.sessions.map { it.start }, ZoneId.systemDefault())
+    if (photo != null) {
+        val scrim = MaterialTheme.trackerColors.photoScrim
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(112.dp)
+                .clip(MaterialTheme.shapes.large),
+        ) {
+            Image(
+                painter = painterResource(photo),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
             )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.3f to Color.Transparent,
+                            1f to scrim.copy(alpha = 0.85f),
+                        ),
+                    ),
+            )
+            SummaryLines(
+                place = place,
+                dates = dates,
+                onPhoto = true,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(Spacing.lg),
+            )
+        }
+    } else {
+        SummaryLines(place = place, dates = dates, onPhoto = false, modifier = modifier)
+    }
+}
+
+@Composable
+private fun SummaryLines(place: String, dates: String?, onPhoto: Boolean, modifier: Modifier = Modifier) {
+    val primary = if (onPhoto) Color.White else MaterialTheme.colorScheme.onSurface
+    val secondary = if (onPhoto) Color.White.copy(alpha = 0.88f) else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (place.isNotEmpty()) {
+            Text(text = place, style = MaterialTheme.typography.bodyMedium, color = secondary)
+        }
+        if (dates != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    AppIcons.Calendar,
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.iconSmall),
+                    tint = secondary,
+                )
+                Text(
+                    text = dates,
+                    modifier = Modifier.padding(start = Spacing.sm),
+                    style = MaterialTheme.typography.titleMedium.numeric().copy(fontSize = 18.sp),
+                    color = primary,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SessionTabs(
+    sessions: List<ScheduledSession>,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    val selectedIndex = sessions.indexOfFirst { it.type == selected }.coerceAtLeast(0)
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        // Equal-width tabs while they fit; they scroll when large text makes them wider.
+        val tabWidth = (maxWidth / sessions.size).coerceAtLeast(64.dp)
+        PrimaryScrollableTabRow(
+            selectedTabIndex = selectedIndex,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.primary,
+            edgePadding = 0.dp,
+            minTabWidth = tabWidth,
+        ) {
+            sessions.forEachIndexed { index, session ->
+                Tab(
+                    selected = index == selectedIndex,
+                    onClick = { onSelect(session.type) },
+                    modifier = Modifier.heightIn(min = Sizes.touchTarget),
+                    selectedContentColor = MaterialTheme.colorScheme.primary,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = {
+                        Text(
+                            text = shortSessionLabel(session.type, session.name),
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                        )
+                    },
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun ResultSection(
-    type: String,
-    title: String,
+    session: ScheduledSession,
     state: ResultSectionState,
     favorite: FavoriteSelection,
     photoUrls: Map<String, String?>,
     photos: DriverPhotos?,
     teamColors: Map<String, String>,
+    onRetry: () -> Unit,
 ) {
-    val shortLabel = shortSessionLabel(type, title)
+    val shortLabel = shortSessionLabel(session.type, session.name)
+    val title = session.name.ifBlank { shortLabel }
+    val (day, clock) = sessionDayAndClock(session.start, ZoneId.systemDefault(), Locale.getDefault())
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = trackerCardColors(),
         border = trackerCardBorder(),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(shortLabel, style = MaterialTheme.typography.titleMedium)
-                if (title.isNotBlank() && !title.equals(shortLabel, ignoreCase = true)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.lg, bottom = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (session.cancelled) "Cancelled" else "$day $clock",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (session.cancelled) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
             }
             AnimatedContent(
                 targetState = state,
@@ -183,29 +385,55 @@ private fun ResultSection(
                 contentKey = { it::class },
                 label = shortLabel,
             ) { current ->
-                when (current) {
-                    ResultSectionState.Loading -> Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Text("Loading", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    ResultSectionState.Missing -> Text(
-                        "No results yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    is ResultSectionState.Failed -> Text(current.message)
-                    is ResultSectionState.Ready -> when (val results = current.results) {
-                        is SessionResults.Qualifying -> QualifyingTable(results.results, favorite, photoUrls, photos, teamColors)
-                        is SessionResults.Practice -> PracticeTable(results.results, favorite, photoUrls, photos, teamColors)
-                        is SessionResults.Race -> RaceTable(results.results, favorite, photoUrls, photos, teamColors)
+                // AnimatedContent stacks its children, and each table emits a header and its rows.
+                Column {
+                    when (current) {
+                        ResultSectionState.Loading -> {
+                            SkeletonList(rows = 6, label = "Loading $title results")
+                        }
+                        ResultSectionState.Missing -> {
+                            CardMessage(
+                                text = if (session.cancelled) "This session was cancelled" else "No results yet",
+                            )
+                        }
+                        is ResultSectionState.Failed -> {
+                            CardMessage(text = current.message, actionLabel = "Try again", onAction = onRetry)
+                        }
+                        is ResultSectionState.Ready -> when (val results = current.results) {
+                            is SessionResults.Qualifying -> {
+                                QualifyingTable(results.results, favorite, photoUrls, photos, teamColors)
+                            }
+                            is SessionResults.Practice -> {
+                                PracticeTable(results.results, favorite, photoUrls, photos, teamColors)
+                            }
+                            is SessionResults.Race -> {
+                                RaceTable(results.results, favorite, photoUrls, photos, teamColors)
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardMessage(text: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.lg)
+            .padding(top = Spacing.xs, bottom = Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (actionLabel != null && onAction != null) {
+            TextButton(onClick = onAction, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
+                Text(actionLabel)
             }
         }
     }
@@ -219,19 +447,22 @@ private fun QualifyingTable(
     photos: DriverPhotos?,
     teamColors: Map<String, String>,
 ) {
+    ResultsHeader(hasPortrait = photos != null) {
+        HeaderLabel("Time", Modifier.widthIn(min = TIME_COLUMN_WIDTH), TextAlign.End)
+    }
     DividedColumn(results.rows) { row ->
-            val readout = qualifyingReadout(row.segments, row.status)
-            ResultLine(
-                position = row.positionText,
-                code = row.code,
-                highlighted = favorite.matches(row.code, row.team),
-                photoUrl = photoUrls[row.code.uppercase()],
-                photos = photos,
-                teamColor = teamColor(teamColors, row.team),
-                team = row.team,
-                headline = readout.headline,
-                note = readout.note,
-            )
+        val readout = qualifyingReadout(row.segments, row.status)
+        ResultLine(
+            position = row.positionText,
+            code = row.code,
+            highlighted = favorite.matches(row.code, row.team),
+            photoUrl = photoUrls[row.code.uppercase()],
+            photos = photos,
+            teamColor = teamColor(teamColors, row.team),
+            team = row.team,
+        ) {
+            TimeBlock(headline = readout.headline, note = readout.note)
+        }
     }
 }
 
@@ -243,19 +474,22 @@ private fun PracticeTable(
     photos: DriverPhotos?,
     teamColors: Map<String, String>,
 ) {
+    ResultsHeader(hasPortrait = photos != null) {
+        HeaderLabel("Best lap", Modifier.widthIn(min = TIME_COLUMN_WIDTH), TextAlign.End)
+    }
     DividedColumn(results.rows) { row ->
-            val readout = practiceReadout(row.time, row.laps)
-            ResultLine(
-                position = row.positionText,
-                code = row.code,
-                highlighted = favorite.matches(row.code, row.team),
-                photoUrl = photoUrls[row.code.uppercase()],
-                photos = photos,
-                teamColor = teamColor(teamColors, row.team),
-                team = row.team,
-                headline = readout.headline,
-                note = readout.note,
-            )
+        val readout = practiceReadout(row.time, row.laps)
+        ResultLine(
+            position = row.positionText,
+            code = row.code,
+            highlighted = favorite.matches(row.code, row.team),
+            photoUrl = photoUrls[row.code.uppercase()],
+            photos = photos,
+            teamColor = teamColor(teamColors, row.team),
+            team = row.team,
+        ) {
+            TimeBlock(headline = readout.headline, note = readout.note)
+        }
     }
 }
 
@@ -268,38 +502,76 @@ private fun RaceTable(
     teamColors: Map<String, String>,
 ) {
     val leader = raceLeader(results.rows)
+    ResultsHeader(hasPortrait = photos != null) {
+        HeaderLabel("Pts", Modifier.width(POINTS_COLUMN_WIDTH), TextAlign.End)
+        HeaderLabel("Time / gap", Modifier.widthIn(min = TIME_COLUMN_WIDTH), TextAlign.End)
+    }
     DividedColumn(results.rows) { row ->
-            ResultLine(
-                position = row.positionText,
-                code = row.code,
-                highlighted = favorite.matches(row.code, row.team),
-                photoUrl = photoUrls[row.code.uppercase()],
-                photos = photos,
-                teamColor = teamColor(teamColors, row.team),
-                team = row.team,
-                headline = raceTimeLabel(row, leader),
-                note = "",
-                points = row.points?.let { "+${formatPoints(it)} pts." },
+        ResultLine(
+            position = row.positionText,
+            code = row.code,
+            highlighted = favorite.matches(row.code, row.team),
+            photoUrl = photoUrls[row.code.uppercase()],
+            photos = photos,
+            teamColor = teamColor(teamColors, row.team),
+            team = row.team,
+        ) {
+            RaceClock(
+                points = row.points?.let { "+${formatPoints(it)} pts" },
+                scored = (row.points ?: 0.0) > 0.0,
+                time = raceTimeLabel(row, leader),
                 places = placesMoved(row.grid, row.position, row.classified),
-                showPoints = true,
             )
+        }
     }
 }
 
 @Composable
 private fun <T> DividedColumn(items: List<T>, row: @Composable (T) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         items.forEachIndexed { index, item ->
             if (index > 0) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    thickness = 1.dp,
+                    modifier = Modifier.padding(horizontal = Spacing.lg),
                     color = MaterialTheme.colorScheme.outlineVariant,
                 )
             }
             row(item)
         }
+        Spacer(Modifier.height(Spacing.xs))
     }
+}
+
+@Composable
+private fun ResultsHeader(hasPortrait: Boolean, right: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.lg)
+            .padding(bottom = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        HeaderLabel("Pos", Modifier.width(POSITION_COLUMN_WIDTH), TextAlign.Center)
+        if (hasPortrait) {
+            Spacer(Modifier.width(Sizes.portrait))
+        }
+        HeaderLabel("Driver", Modifier.weight(1f), TextAlign.Start)
+        right()
+    }
+}
+
+@Composable
+private fun HeaderLabel(text: String, modifier: Modifier, align: TextAlign) {
+    Text(
+        text = text.uppercase(),
+        modifier = modifier,
+        style = MaterialTheme.typography.labelSmall.overline(),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = align,
+        maxLines = 1,
+    )
 }
 
 @Composable
@@ -311,104 +583,142 @@ private fun ResultLine(
     photos: DriverPhotos?,
     teamColor: String?,
     team: String,
-    headline: String,
-    note: String,
-    points: String? = null,
-    places: Int? = null,
-    showPoints: Boolean = false,
+    right: @Composable () -> Unit,
 ) {
     val nameColor = if (highlighted) {
         MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.onSurface
     }
-    val nameWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Medium
+    val background = if (highlighted) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+    } else {
+        Color.Transparent
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 40.dp)
-            .semantics {
+            .background(background)
+            .padding(horizontal = Spacing.lg, vertical = 6.dp)
+            .heightIn(min = 52.dp)
+            .semantics(mergeDescendants = true) {
                 if (highlighted) stateDescription = "Favorite"
             },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Text(
-            text = position.ifBlank { "—" },
-            modifier = Modifier.width(28.dp),
-            style = MaterialTheme.typography.titleSmall.tabular(),
-            fontWeight = nameWeight,
-            color = nameColor,
-            maxLines = 1,
-            overflow = TextOverflow.Clip,
-        )
+        PositionMark(position)
         if (photos != null) {
             DriverPortrait(code = code, photoUrl = photoUrl, photos = photos)
         }
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             Text(
                 text = code.ifBlank { "—" },
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = nameWeight,
+                fontWeight = if (highlighted) FontWeight.Bold else FontWeight.SemiBold,
                 color = nameColor,
                 maxLines = 1,
             )
+            if (highlighted) {
+                Icon(
+                    AppIcons.Favorites,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
             TeamColorMark(color = teamColor, team = team)
         }
-        if (showPoints) {
-            RaceClock(
-                points = points,
-                time = headline,
-                places = places,
+        right()
+    }
+}
+
+@Composable
+private fun PositionMark(position: String) {
+    val colors = MaterialTheme.trackerColors
+    val podium = when (position.trim()) {
+        "1" -> colors.firstPlace
+        "2" -> colors.secondPlace
+        "3" -> colors.thirdPlace
+        else -> null
+    }
+    Box(
+        modifier = Modifier
+            .size(POSITION_COLUMN_WIDTH)
+            .clip(RoundedCornerShape(9.dp))
+            .background(podium ?: Color.Transparent),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = position.ifBlank { "—" },
+            style = MaterialTheme.typography.titleMedium.numeric(),
+            color = if (podium != null) colors.onPodium else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+        )
+    }
+}
+
+@Composable
+private fun TimeBlock(headline: String, note: String) {
+    Column(
+        modifier = Modifier.widthIn(min = TIME_COLUMN_WIDTH),
+        horizontalAlignment = Alignment.End,
+    ) {
+        Text(
+            text = headline,
+            style = MaterialTheme.typography.titleSmall.numeric().copy(fontSize = 15.sp),
+            textAlign = TextAlign.End,
+            maxLines = 1,
+        )
+        if (note.isNotEmpty()) {
+            Text(
+                text = note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
             )
-        } else {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = headline,
-                    style = MaterialTheme.typography.bodyMedium.tabular(),
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                )
-                if (note.isNotEmpty()) {
-                    Text(
-                        text = note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.End,
-                    )
-                }
-            }
         }
     }
 }
 
 @Composable
-private fun RaceClock(points: String?, time: String, places: Int?) {
+private fun RaceClock(points: String?, scored: Boolean, time: String, places: Int?) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Text(
             text = points.orEmpty(),
-            modifier = Modifier.width(76.dp),
-            style = MaterialTheme.typography.titleSmall.tabular().copy(
+            modifier = Modifier.width(POINTS_COLUMN_WIDTH),
+            style = MaterialTheme.typography.titleSmall.numeric().copy(
                 platformStyle = PlatformTextStyle(includeFontPadding = false),
             ),
+            color = if (scored) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
             textAlign = TextAlign.End,
             maxLines = 1,
         )
-        Column(horizontalAlignment = Alignment.End) {
+        Column(
+            modifier = Modifier.widthIn(min = TIME_COLUMN_WIDTH),
+            horizontalAlignment = Alignment.End,
+        ) {
             Text(
                 text = time,
-                style = MaterialTheme.typography.bodyMedium.tabular().copy(
-                    lineHeight = 16.sp,
+                style = MaterialTheme.typography.titleSmall.numeric().copy(
+                    fontSize = 15.sp,
+                    lineHeight = 18.sp,
                     platformStyle = PlatformTextStyle(includeFontPadding = false),
                 ),
                 textAlign = TextAlign.End,
+                maxLines = 1,
             )
             if (places != null) {
                 val placeLabel = when {
@@ -417,16 +727,16 @@ private fun RaceClock(points: String?, time: String, places: Int?) {
                     else -> "No places gained or lost"
                 }
                 Row(
-                    modifier = Modifier.clearAndSetSemantics {
-                        contentDescription = placeLabel
-                    },
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .clearAndSetSemantics { contentDescription = placeLabel },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (places == 0) PlacesDash() else PlacesTriangle(up = places > 0)
                     Text(
                         text = kotlin.math.abs(places).toString(),
-                        modifier = Modifier.width(18.dp),
-                        style = MaterialTheme.typography.labelMedium.tabular().copy(
+                        modifier = Modifier.width(20.dp),
+                        style = MaterialTheme.typography.labelMedium.numeric().copy(
                             lineHeight = 12.sp,
                             platformStyle = PlatformTextStyle(includeFontPadding = false),
                         ),
@@ -442,8 +752,9 @@ private fun RaceClock(points: String?, time: String, places: Int?) {
 
 @Composable
 private fun PlacesTriangle(up: Boolean) {
-    val color = if (up) Color(0xFF34A853) else Color(0xFFFF3B30)
-    Canvas(modifier = Modifier.size(width = 10.dp, height = 6.dp)) {
+    val colors = MaterialTheme.trackerColors
+    val color = if (up) colors.gained else colors.lost
+    Canvas(modifier = Modifier.size(width = 11.dp, height = 7.dp)) {
         val path = Path().apply {
             if (up) {
                 moveTo(size.width / 2f, 0f)
@@ -463,7 +774,7 @@ private fun PlacesTriangle(up: Boolean) {
 @Composable
 private fun PlacesDash() {
     Box(
-        modifier = Modifier.size(width = 10.dp, height = 6.dp),
+        modifier = Modifier.size(width = 11.dp, height = 7.dp),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -584,12 +895,20 @@ private suspend fun loadSection(
     sessionType: String,
 ): ResultSectionState {
     return try {
-        ResultSectionState.Ready(source.fetchResults(year, round, sessionType))
+        val results = source.fetchResults(year, round, sessionType)
+        if (results.hasRows()) ResultSectionState.Ready(results) else ResultSectionState.Missing
     } catch (_: ResultsNotFound) {
         ResultSectionState.Missing
     } catch (error: Exception) {
         ResultSectionState.Failed(error.message ?: "Couldn't load results")
     }
+}
+
+// The provider answers with an empty list for a session it has not published yet.
+internal fun SessionResults.hasRows(): Boolean = when (this) {
+    is SessionResults.Qualifying -> results.rows.isNotEmpty()
+    is SessionResults.Practice -> results.rows.isNotEmpty()
+    is SessionResults.Race -> results.rows.isNotEmpty()
 }
 
 internal fun formatPoints(points: Double): String {
