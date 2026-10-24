@@ -115,13 +115,13 @@ fun RemindersScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (!notificationsAllowed) {
-            NoticeBanner("Notifications are off, so reminders cannot appear.", warning = true)
+            NoticeBanner("Notifications are off, so reminders cannot appear.", tone = NoticeTone.Error)
             TextButton(onClick = { openNotificationSettings(context) }) {
                 Text("Allow notifications")
             }
         }
         if (!exactAlarmsAllowed) {
-            NoticeBanner("Exact alarms are off, so reminders may arrive late.", warning = true)
+            NoticeBanner("Exact alarms are off, so reminders may arrive late.", tone = NoticeTone.Caution)
             TextButton(
                 onClick = {
                     val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {

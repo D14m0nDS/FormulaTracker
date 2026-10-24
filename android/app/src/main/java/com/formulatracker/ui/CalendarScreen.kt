@@ -1,12 +1,17 @@
 package com.formulatracker.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,31 +22,43 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.formulatracker.schedule.RaceWeekend
 import com.formulatracker.schedule.ScheduledSession
 import com.formulatracker.schedule.SeasonSchedule
-import com.formulatracker.ui.theme.tabular
+import com.formulatracker.ui.theme.Sizes
+import com.formulatracker.ui.theme.Spacing
+import com.formulatracker.ui.theme.numeric
+import com.formulatracker.ui.theme.overline
+import com.formulatracker.ui.theme.trackerColors
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -53,6 +70,8 @@ sealed interface ScheduleUiState {
     data class Ready(val schedule: SeasonSchedule) : ScheduleUiState
     data class Failed(val message: String) : ScheduleUiState
 }
+
+private val HEADER_HEIGHT = 172.dp
 
 @Composable
 fun ScheduleContent(
@@ -67,7 +86,11 @@ fun ScheduleContent(
 ) {
     Column(modifier.fillMaxSize()) {
         if (updatedMessage != null) {
-            NoticeBanner(updatedMessage, Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp))
+            NoticeBanner(
+                message = updatedMessage,
+                modifier = Modifier.padding(start = Spacing.lg, top = Spacing.sm, end = Spacing.lg),
+                tone = NoticeTone.Caution,
+            )
         }
         when (state) {
             ScheduleUiState.Loading -> CalendarSkeleton()
@@ -87,8 +110,8 @@ fun ScheduleContent(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(Spacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
                     ) {
                         items(state.schedule.events, key = { it.round }) { weekend ->
                             WeekendSection(
@@ -111,8 +134,8 @@ private fun CalendarSkeleton() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
     ) {
         repeat(2) {
             Card(
@@ -124,16 +147,15 @@ private fun CalendarSkeleton() {
                     Spacer(
                         Modifier
                             .fillMaxWidth()
-                            .height(156.dp)
+                            .height(HEADER_HEIGHT)
                             .skeleton(MaterialTheme.shapes.extraSmall),
                     )
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    Row(
+                        modifier = Modifier.padding(Spacing.lg),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        SkeletonLine(Modifier.fillMaxWidth(0.6f), height = 18.dp)
-                        SkeletonLine(Modifier.fillMaxWidth(0.8f), height = 12.dp)
-                        SkeletonLine(Modifier.fillMaxWidth(0.3f), height = 12.dp)
+                        SkeletonLine(Modifier.width(120.dp), height = 18.dp)
+                        SkeletonLine(Modifier.width(64.dp), height = 18.dp)
                     }
                 }
             }
@@ -149,131 +171,216 @@ private fun WeekendSection(
     onToggle: () -> Unit,
     onClick: () -> Unit,
 ) {
-    val highlighted = mark != null
     val chevron by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = tween(180),
+        animationSpec = tween(200),
         label = "sessions",
     )
+    val interaction = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(interaction),
         colors = trackerCardColors(),
-        border = trackerCardBorder(highlighted),
+        border = trackerCardBorder(emphasized = mark != null),
+        interactionSource = interaction,
     ) {
-        Column(modifier = Modifier.animateContentSize()) {
-            val photo = circuitImageRes(weekend.circuitName)
-            if (photo != null) {
-                Image(
-                    painter = painterResource(photo),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(156.dp),
-                    contentScale = ContentScale.Crop,
-                )
-            }
-            Column(
-                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+        Column {
+            WeekendHeader(weekend, mark)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (mark != null) {
-                    Text(
-                        text = mark,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = "Round ${weekend.round} · ${weekend.name}",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = circuitLine(weekend),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        val dates = weekendDateRange(
-                            weekend.sessions.map { it.start },
-                            ZoneId.systemDefault(),
-                        )
-                        if (dates != null) {
-                            Text(
-                                text = dates,
-                                style = MaterialTheme.typography.titleSmall.tabular(),
-                            )
-                        }
-                    }
+                val dates = weekendDateRange(weekend.sessions.map { it.start }, ZoneId.systemDefault())
+                if (dates != null) {
                     Icon(
-                        AppIcons.ChevronRight,
-                        contentDescription = "Open results",
-                        modifier = Modifier.size(22.dp),
+                        AppIcons.Calendar,
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizes.iconSmall),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Text(
+                        text = dates,
+                        modifier = Modifier.padding(start = Spacing.sm),
+                        style = MaterialTheme.typography.titleMedium.numeric().copy(fontSize = 18.sp),
+                    )
                 }
-                AnimatedVisibility(visible = expanded) {
-                    Column(
-                        modifier = Modifier.padding(top = 8.dp, end = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        weekend.sessions.forEach { session ->
-                            SessionRow(session)
-                        }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "Results",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Icon(
+                    AppIcons.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(Sizes.iconSmall),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(tween(240)) + fadeIn(tween(200)),
+                exit = shrinkVertically(tween(200)) + fadeOut(tween(120)),
+            ) {
+                Column(modifier = Modifier.padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm)) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    weekend.sessions.forEach { session ->
+                        SessionRow(session)
                     }
                 }
-                if (weekend.sessions.isNotEmpty()) {
-                    TextButton(
-                        onClick = onToggle,
+            }
+            if (weekend.sessions.isNotEmpty()) {
+                TextButton(
+                    onClick = onToggle,
+                    modifier = Modifier
+                        .padding(start = Spacing.sm, bottom = Spacing.xs)
+                        .heightIn(min = Sizes.touchTarget)
+                        .semantics {
+                            stateDescription = if (expanded) "Expanded" else "Collapsed"
+                        },
+                ) {
+                    Text(if (expanded) "Show less" else "Show more")
+                    Spacer(Modifier.size(Spacing.xs))
+                    Icon(
+                        AppIcons.ChevronDown,
+                        contentDescription = null,
                         modifier = Modifier
-                            .align(Alignment.Start)
-                            .heightIn(min = 48.dp)
-                            .semantics {
-                                stateDescription = if (expanded) "Expanded" else "Collapsed"
-                            },
-                    ) {
-                        Text(if (expanded) "Show less" else "Show more")
-                        Spacer(Modifier.size(4.dp))
-                        Icon(
-                            AppIcons.ChevronDown,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(18.dp)
-                                .rotate(chevron),
-                        )
-                    }
+                            .size(Sizes.iconSmall)
+                            .rotate(chevron),
+                    )
                 }
+            } else {
+                Spacer(Modifier.height(Spacing.md))
             }
         }
     }
 }
 
 @Composable
+private fun WeekendHeader(weekend: RaceWeekend, mark: String?) {
+    val photo = circuitImageRes(weekend.circuitName)
+    if (photo != null) {
+        val scrim = MaterialTheme.trackerColors.photoScrim
+        Box(modifier = Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
+            Image(
+                painter = painterResource(photo),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop,
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.35f to Color.Transparent,
+                            1f to scrim.copy(alpha = 0.88f),
+                        ),
+                    ),
+            )
+            if (mark != null) {
+                MarkChip(
+                    label = mark,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(Spacing.md),
+                )
+            }
+            HeaderText(
+                weekend = weekend,
+                onPhoto = true,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(Spacing.lg),
+            )
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            if (mark != null) {
+                MarkChip(label = mark)
+            }
+            HeaderText(weekend = weekend, onPhoto = false)
+        }
+    }
+}
+
+@Composable
+private fun HeaderText(weekend: RaceWeekend, onPhoto: Boolean, modifier: Modifier = Modifier) {
+    val primaryText = if (onPhoto) Color.White else MaterialTheme.colorScheme.onSurface
+    val secondaryText = if (onPhoto) Color.White.copy(alpha = 0.86f) else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = "ROUND ${weekend.round}",
+            style = MaterialTheme.typography.labelSmall.overline(),
+            color = secondaryText,
+        )
+        Text(
+            text = weekend.name,
+            style = MaterialTheme.typography.headlineSmall,
+            color = primaryText,
+        )
+        val place = circuitLine(weekend)
+        if (place.isNotEmpty()) {
+            Text(
+                text = place,
+                style = MaterialTheme.typography.bodyMedium,
+                color = secondaryText,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MarkChip(label: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onPrimary),
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
 private fun SessionRow(session: ScheduledSession) {
-    val time = formatSessionStart(session.start, ZoneId.systemDefault(), Locale.getDefault())
+    val (day, clock) = sessionDayAndClock(session.start, ZoneId.systemDefault(), Locale.getDefault())
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 32.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .heightIn(min = 40.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = shortSessionLabel(session.type, session.name),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(72.dp),
             style = MaterialTheme.typography.titleSmall,
             textDecoration = if (session.cancelled) TextDecoration.LineThrough else null,
             color = if (session.cancelled) {
@@ -282,15 +389,27 @@ private fun SessionRow(session: ScheduledSession) {
                 MaterialTheme.colorScheme.onSurface
             },
         )
-        Text(
-            text = if (session.cancelled) "Cancelled" else time,
-            style = MaterialTheme.typography.bodyMedium.tabular(),
-            color = if (session.cancelled) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-        )
+        if (session.cancelled) {
+            Text(
+                text = "Cancelled",
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = Spacing.xs),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.error,
+            )
+        } else {
+            Text(
+                text = day,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = clock,
+                style = MaterialTheme.typography.titleMedium.numeric(),
+            )
+        }
     }
 }
 
@@ -319,10 +438,15 @@ internal fun weekendDateRange(starts: List<Instant>, zone: ZoneId): String? {
     return "$startText-${formatter.format(last)}"
 }
 
-internal fun formatSessionStart(start: Instant, zone: ZoneId, locale: Locale): String {
+internal fun sessionDayAndClock(start: Instant, zone: ZoneId, locale: Locale): Pair<String, String> {
     val local = start.atZone(zone)
     val day = DateTimeFormatter.ofPattern("EEE", locale).format(local)
     val clock = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).format(local)
+    return day to clock
+}
+
+internal fun formatSessionStart(start: Instant, zone: ZoneId, locale: Locale): String {
+    val (day, clock) = sessionDayAndClock(start, zone, locale)
     return "$day $clock"
 }
 

@@ -129,23 +129,25 @@ internal fun StatusMessage(
     }
 }
 
+internal enum class NoticeTone { Info, Caution, Error }
+
 @Composable
 internal fun NoticeBanner(
     message: String,
     modifier: Modifier = Modifier,
-    warning: Boolean = false,
+    tone: NoticeTone = NoticeTone.Info,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    val container = if (warning) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.secondaryContainer
+    val container = when (tone) {
+        NoticeTone.Info -> MaterialTheme.colorScheme.secondaryContainer
+        NoticeTone.Caution -> MaterialTheme.colorScheme.tertiaryContainer
+        NoticeTone.Error -> MaterialTheme.colorScheme.errorContainer
     }
-    val content = if (warning) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onSecondaryContainer
+    val content = when (tone) {
+        NoticeTone.Info -> MaterialTheme.colorScheme.onSecondaryContainer
+        NoticeTone.Caution -> MaterialTheme.colorScheme.onTertiaryContainer
+        NoticeTone.Error -> MaterialTheme.colorScheme.onErrorContainer
     }
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -157,7 +159,7 @@ internal fun NoticeBanner(
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Icon(
-                imageVector = if (warning) AppIcons.Warning else AppIcons.Info,
+                imageVector = if (tone == NoticeTone.Info) AppIcons.Info else AppIcons.Warning,
                 contentDescription = null,
                 modifier = Modifier
                     .padding(top = 1.dp)
