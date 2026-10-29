@@ -124,7 +124,7 @@ flowchart TB
 
 Jolpica's schedule is normalized into weekends and sessions (`FP1`, `FP2`, `FP3`, `SQ`, `SR`, `Q`, `R`) with a UTC start, the circuit timezone, and a cancelled flag. Qualifying segments stay inside the result, not the calendar. Results, standings, team colors, and driver photographs go through the same kind of adapter. Successful responses are cached in the process for 15 minutes. An empty result is kept for a shorter time, and an OpenF1 fallback result is kept for at most five minutes, so a later Jolpica payload can replace it.
 
-For day-to-day development the API is published on `127.0.0.1:8000`. The Android emulator reaches that port through `10.0.2.2`. A physical phone uses a separate build variant that calls `https://formulatracker.duckdns.org`. That host is the optional Compose profile: Caddy terminates TLS, requires HTTP basic auth, and proxies to the API. DuckDNS keeps the name pointed at the machine running Compose. Credentials stay in untracked files.
+For day-to-day development the API is published on `127.0.0.1:8000`. The Android emulator reaches that port through `10.0.2.2`. A physical phone uses a separate build variant that calls `https://formulatracker.duckdns.org`. That hostname is served by Caddy in a separate infrastructure Compose project at `C:\Users\Victoria\server-infrastructure`. Caddy terminates TLS, requires HTTP basic auth, and proxies to this API on the Docker network `reverse-proxy`. DuckDNS for that name is updated by the same infrastructure project. Credentials stay in untracked files.
 
 ## Run it locally
 
@@ -144,7 +144,7 @@ docker compose up -d --build backend
 
 The API listens on [http://127.0.0.1:8000](http://127.0.0.1:8000). `GET /health` returns `{"status":"ok"}`. Interactive docs are at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
-Only the `backend` service starts by default. The port is bound to loopback, so it is reachable from the emulator and from the host, and not from the public internet.
+The Compose file defines only `backend`. That service joins the external Docker network `reverse-proxy` under the alias `formulatracker-api`, and publishes port 8000 on `127.0.0.1` only. On the server, the infrastructure project creates `reverse-proxy` before this stack starts. If the network is missing, create it once with `docker network create reverse-proxy`. The port is reachable from the emulator and from the host, and not from the public internet.
 
 ### Android emulator
 
@@ -175,13 +175,7 @@ cd android
 
 The APK is written under `app/build/outputs/apk/phone/debug/`. Install it on a device with USB debugging, or run the `phoneDebug` variant from Android Studio.
 
-The public server is the Compose profile `public`, configured from `.env` (see `.env.example`). It expects `DUCKDNS_TOKEN`, `ACME_EMAIL`, `BASIC_AUTH_USER`, and `BASIC_AUTH_HASH`. The hash is a Caddy password hash, not the raw password.
-
-```bash
-docker compose --profile public up -d
-```
-
-Keep `.env`, tokens, and `local.properties` off the repository. The loopback backend has no authentication; the public profile is what puts a password in front of the API.
+Production HTTPS is `https://formulatracker.duckdns.org`. Caddy in `C:\Users\Victoria\server-infrastructure` terminates TLS, requires HTTP basic auth, and proxies to `formulatracker-api:8000`. This repository does not start Caddy or DuckDNS. Keep `.env` and `local.properties` off the repository. The loopback backend has no authentication; Caddy is what puts a password in front of the public API.
 
 ## API
 
