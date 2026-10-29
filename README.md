@@ -175,7 +175,7 @@ cd android
 
 The APK is written under `app/build/outputs/apk/phone/debug/`. Install it on a device with USB debugging, or run the `phoneDebug` variant from Android Studio.
 
-Production HTTPS is `https://formulatracker.duckdns.org`. Caddy in `C:\Users\Victoria\server-infrastructure` terminates TLS, requires HTTP basic auth, and proxies to `formulatracker-api:8000`. This repository does not start Caddy or DuckDNS. Keep `.env` and `local.properties` off the repository. The loopback backend has no authentication; Caddy is what puts a password in front of the public API.
+Production HTTPS is `https://formulatracker.duckdns.org`. Caddy in `C:\Users\Victoria\server-infrastructure` terminates TLS, requires HTTP basic auth, and proxies to `formulatracker-api:8000`. This repository does not start Caddy or DuckDNS, and its Compose file does not read an env file. The Caddy username, password hash, and DuckDNS token stay in that project's ignored `.env`. Keep `android/local.properties` off the repository. The loopback backend has no authentication; Caddy is what puts a password in front of the public API.
 
 ## API
 
