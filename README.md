@@ -124,7 +124,7 @@ flowchart TB
 
 Jolpica's schedule is normalized into weekends and sessions (`FP1`, `FP2`, `FP3`, `SQ`, `SR`, `Q`, `R`) with a UTC start, the circuit timezone, and a cancelled flag. Qualifying segments stay inside the result, not the calendar. Results, standings, team colors, and driver photographs go through the same kind of adapter. Successful responses are cached in the process for 15 minutes. An empty result is kept for a shorter time, and an OpenF1 fallback result is kept for at most five minutes, so a later Jolpica payload can replace it.
 
-For day-to-day development the API is published on `127.0.0.1:8000`. The Android emulator reaches that port through `10.0.2.2`. A physical phone uses a separate build variant that calls `https://formulatracker.duckdns.org`. That hostname is served by Caddy in a separate infrastructure Compose project at `C:\Users\Victoria\server-infrastructure`. Caddy terminates TLS, requires HTTP basic auth, and proxies to this API on the Docker network `reverse-proxy`. DuckDNS for that name is updated by the same infrastructure project. Credentials stay in untracked files.
+For day-to-day development the API is published on `127.0.0.1:8000`. The Android emulator reaches that port through `10.0.2.2`. A physical phone uses a separate build variant that calls `https://formulatracker.duckdns.org`. That hostname is served by Caddy in a separate infrastructure Compose project, outside this repository. On the production server that project is `$env:USERPROFILE\server-infrastructure` on Windows, or `$HOME/server-infrastructure` otherwise. Caddy terminates TLS, requires HTTP basic auth, and proxies to this API on the Docker network `reverse-proxy`. DuckDNS for that name is updated by the same infrastructure project. Credentials stay in untracked files.
 
 ## Run it locally
 
@@ -175,7 +175,7 @@ cd android
 
 The APK is written under `app/build/outputs/apk/phone/debug/`. Install it on a device with USB debugging, or run the `phoneDebug` variant from Android Studio.
 
-Production HTTPS is `https://formulatracker.duckdns.org`. Caddy in `C:\Users\Victoria\server-infrastructure` terminates TLS, requires HTTP basic auth, and proxies to `formulatracker-api:8000`. This repository does not start Caddy or DuckDNS, and its Compose file does not read an env file. The Caddy username, password hash, and DuckDNS token stay in that project's ignored `.env`. Keep `android/local.properties` off the repository. The loopback backend has no authentication; Caddy is what puts a password in front of the public API.
+Production HTTPS is `https://formulatracker.duckdns.org`. Caddy in that infrastructure project (`$env:USERPROFILE\server-infrastructure` on Windows, `$HOME/server-infrastructure` otherwise) terminates TLS, requires HTTP basic auth, and proxies to `formulatracker-api:8000`. This repository does not start Caddy or DuckDNS, and its Compose file does not read an env file. The Caddy username, password hash, and DuckDNS token stay in that project's ignored `.env`. Keep `android/local.properties` off the repository. The loopback backend has no authentication; Caddy is what puts a password in front of the public API.
 
 ## API
 
